@@ -98,7 +98,9 @@ def main() -> int:
             return
         ts = np.array([t for t, _ in org.kc_dump]); codes = np.stack([c for _, c in org.kc_dump])
         np.savez_compressed(run.file(f"kc_{split}.npz"), t=ts, codes=codes,
-                            label=ds.outcomes["label"].to_numpy()[ts], fwd_return_atr=ds.outcomes["fwd_return_atr"].to_numpy()[ts])
+                            label=ds.outcomes["label"].to_numpy()[ts], fwd_return_atr=ds.outcomes["fwd_return_atr"].to_numpy()[ts],
+                            mfe_long=ds.outcomes["mfe_long"].to_numpy()[ts], mae_long=ds.outcomes["mae_long"].to_numpy()[ts],
+                            trend=ds.z["trend_slope"].to_numpy()[ts])
         org.kc_dump.clear()
 
     results = {}
