@@ -43,6 +43,7 @@ def main() -> int:
     p.add_argument("--tag", default="")
     p.add_argument("--no-baselines", action="store_true")
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--dump-kc", action="store_true", help="save KC spike codes per split (kc_<split>.npz) for kc_probe.py")
     p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                    help="override a config value, dotted path, e.g. --set learning.avoid_scale=0.7")
     a = p.parse_args()
@@ -92,14 +93,28 @@ def main() -> int:
             print(f"  [{rec.split}] {rec.t} {rec.action:<8} arousal {rec.arousal:.2f} shares "
                   + " ".join(f"{k}={v:.2f}" for k, v in rec.pop_share.items()))
 
+    def dump_kc(split):
+        if not a.dump_kc or not org.kc_dump:
+            return
+        ts = np.array([t for t, _ in org.kc_dump]); codes = np.stack([c for _, c in org.kc_dump])
+        np.savez_compressed(run.file(f"kc_{split}.npz"), t=ts, codes=codes,
+                            label=ds.outcomes["label"].to_numpy()[ts], fwd_return_atr=ds.outcomes["fwd_return_atr"].to_numpy()[ts])
+        org.kc_dump.clear()
+
     results = {}
+    if a.dump_kc:
+        org.kc_dump = []
     train_recs = org.run_split(ds, train_mask, "train", learn=True, epochs=cfg["learning"]["epochs"], on_decision=on_decision)
+    if a.dump_kc and cfg["learning"]["epochs"] > 1:      # keep only the last epoch's codes
+        n = len(train_recs); org.kc_dump = org.kc_dump[-n:]
+    dump_kc("train")
     results["train"] = {"organism": evaluate(train_recs, ds, cfg)}
     frozen = {}
     for split in ("validation", "test"):
         if int((masks[split] & ds.valid).sum()) == 0:
             continue
         recs = org.run_split(ds, masks[split], split, learn=False, on_decision=on_decision)
+        dump_kc(split)
         results[split] = {"organism": evaluate(recs, ds, cfg)}
         frozen[split] = recs
         for r in recs:

@@ -45,6 +45,7 @@ class TradingOrganism:
         self.baseline_alpha = 1.0 / max(1.0, A.get("baseline_tau_bars", 500))
         self.drive_baseline = np.ones(3)
         self.baseline_n = 0
+        self.kc_dump: list | None = None      # set to [] to record (t, kc_spike_counts) per decision
 
     def calibrate(self, ds: Dataset, mask: pd.Series, n_samples: int = 24) -> float:
         idx = np.nonzero((mask & ds.valid).to_numpy())[0]
@@ -81,6 +82,8 @@ class TradingOrganism:
             label=ACTION_NAMES.get(int(ds.outcomes["label"].iloc[t]), "?"),
         )
         state = {"trace": res.kc_trace if res else None, "action": action}
+        if res is not None and self.kc_dump is not None:
+            self.kc_dump.append((t, res.kc_spikes.astype(np.uint8)))
         return action, state, rec
 
     def learn_from(self, ds: Dataset, t: int, state: dict, rec: DecisionRecord) -> None:
