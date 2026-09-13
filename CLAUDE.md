@@ -214,6 +214,27 @@ Unlike macOS, the Windows overlay spans the whole virtual desktop, so the fly
 walks and flies between monitors on its own; `Fly.screens` keeps it out of the
 dead corners of a non-rectangular layout.
 
+## Trader Fly (`trader/`, Python)
+
+Research prototype: market klines → causal features → PN rates → reduced
+mushroom-body LIF network (KC sparse code, APL, MBON populations long/short/avoid)
+→ dopamine-gated KC→MBON depression from *delayed* future outcomes → LONG / SHORT /
+NO_TRADE. No exchange keys, no orders. Rules that must hold:
+
+- Every parameter/claim is tagged **[A] measured**, **[B] bio-inspired mapping** or
+  **[C] trading engineering** (see `trader/ARCHITECTURE.md`). Milestone 1 has no
+  [A] synapses: `mb_topology.py` generates wiring from measured statistics.
+- No look-ahead: features/normalization use bars ≤ t only; labels and rewards live
+  in `Dataset.outcomes`; outcomes are released `horizon` bars later by
+  `environment/replay.py`. `tests/test_no_lookahead.py` MUST stay green.
+- Splits are time-ordered, never random; tune knobs (`learning.avoid_scale`,
+  `agent.margin`) on validation only.
+- `cd trader && python -m pytest -q` after any change; `python run_experiment.py
+  configs/btcusdt_1h_mvp.json --synthetic` is the offline end-to-end check. The
+  cloud sandbox cannot reach `data.binance.vision`; real downloads run locally.
+- `state.json` (written by `trader/ui/state.py`) is the contract for a future
+  DesktopFly hook: `behavior`, `arousal`, `decision`. Keep the UI out of the model.
+
 ## Repo conventions
 
 - Public repo: `DenisSergeevitch/desktop-fly` (master). Code MIT; original

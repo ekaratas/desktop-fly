@@ -215,6 +215,18 @@ input coverage. See [data/LOCOMOTOR_PROVENANCE.md](data/LOCOMOTOR_PROVENANCE.md)
 for the extraction rules and data/model boundary. Keep raw downloads outside
 the repository; the original FlyWire files are not changed by this extractor.
 
+## Trader Fly (research prototype, `trader/`)
+
+A separate Python sub-project that points the same idea at a different world:
+Binance Futures market data become the sensory stimuli of a Drosophila-inspired
+organism whose reduced mushroom-body spiking circuit learns LONG / SHORT /
+NO_TRADE from dopamine-like reward and punishment. It downloads public archive
+klines, trains on the past, evaluates on strictly later periods against
+classical baselines, and serves a small live dashboard. **It never trades.**
+See [`trader/README.md`](trader/README.md) and
+[`trader/ARCHITECTURE.md`](trader/ARCHITECTURE.md), which keep the
+measured / bio-inspired / engineering boundary explicit.
+
 ## Diagnostics
 
 ```sh

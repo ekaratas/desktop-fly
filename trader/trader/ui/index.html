@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Trader Fly — live</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--ink:#e6e6e6;--mute:#8b93a7;--long:#2fbf71;--short:#e5484d;--avoid:#5b8def;--ar:#f5a524}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 12px;display:flex;gap:12px;align-items:center}
+h1 small{color:var(--mute);font-weight:400}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border-radius:8px;padding:12px}
+.panel h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 8px}
+canvas{width:100%;display:block}
+.bars div{display:flex;align-items:center;gap:8px;margin:4px 0}
+.bars label{width:92px;color:var(--mute);font-size:12px}
+.bars .track{flex:1;height:10px;background:#0b0d12;border-radius:5px;overflow:hidden;position:relative}
+.bars .fill{height:100%;border-radius:5px}
+.bars .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#333}
+.bars span{width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
+.decision{font-size:32px;font-weight:700;margin:6px 0}
+.LONG{color:var(--long)}.SHORT{color:var(--short)}.NO_TRADE{color:var(--avoid)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px;color:var(--mute)}
+.kv b{color:var(--ink);font-weight:500}
+.fly{font-size:40px;text-align:center;margin:4px 0}
+.note{color:var(--mute);font-size:11px;margin-top:10px}
+</style></head><body>
+<h1>🪰 Trader Fly <small id="meta">waiting for state.json…</small></h1>
+<div class="grid">
+  <div>
+    <div class="panel"><h2>Market stimulus (last bars) &amp; decisions</h2><canvas id="chart" height="300"></canvas></div>
+    <div class="panel" style="margin-top:12px"><h2>Cost-adjusted PnL of matured decisions (ATR units)</h2><canvas id="pnl" height="120"></canvas></div>
+  </div>
+  <div>
+    <div class="panel"><h2>Behavioral state</h2>
+      <div class="fly" id="flyicon">💤</div>
+      <div class="decision" id="decision">—</div>
+      <div class="kv"><span>creature</span><b id="behavior">—</b><span>arousal</span><b id="arousal">—</b><span>label (future)</span><b id="label">—</b><span>last reward</span><b id="reward">—</b><span>KC active</span><b id="kc">—</b></div>
+    </div>
+    <div class="panel" style="margin-top:12px"><h2>Sensory channels</h2><div class="bars" id="channels"></div></div>
+    <div class="panel" style="margin-top:12px"><h2>MBON populations (share of drive)</h2><div class="bars" id="pops"></div></div>
+    <div class="panel" style="margin-top:12px"><h2>Synaptic weights (mean KC→MBON) · counts</h2><div class="bars" id="weights"></div><div class="kv" id="counts"></div></div>
+  </div>
+</div>
+<p class="note">Research prototype. No orders are ever sent. Channel bars are causal z-scores (sensory mapping is a design choice, not measured fly wiring); populations are the modeled mushroom-body readout.</p>
+<script>
+const $=id=>document.getElementById(id);
+const ICON={sleep:"💤",explore:"🪰",alert:"👀",hunt_long:"🟢🪰",hunt_short:"🔴🪰",rest:"🪰",reward:"🍯",aversive:"⚡"};
+function bar(el,label,val,lo,hi,color,signed){
+  const pct=Math.max(0,Math.min(1,(val-lo)/(hi-lo)));
+  let d=el.querySelector(`[data-k="${label}"]`);
+  if(!d){d=document.createElement("div");d.dataset.k=label;d.innerHTML=`<label>${label}</label><div class="track"><div class="mid"></div><div class="fill"></div></div><span></span>`;el.appendChild(d);}
+  const f=d.querySelector(".fill");
+  if(signed){const half=Math.abs(val)/(hi-lo)*100*2/2;f.style.width=Math.min(50,Math.abs(val)/(hi)*50)+"%";f.style.marginLeft=(val>=0?50:50-Math.min(50,Math.abs(val)/(hi)*50))+"%";}
+  else{f.style.width=(pct*100)+"%";f.style.marginLeft="0";}
+  f.style.background=color;d.querySelector("span").textContent=(signed&&val>0?"+":"")+val.toFixed(2);
+}
+function drawChart(c){
+  const cv=$("chart"),ctx=cv.getContext("2d");const W=cv.width=cv.clientWidth*devicePixelRatio,H=cv.height=300*devicePixelRatio;
+  ctx.clearRect(0,0,W,H);const cs=c.filter(x=>x.o!==undefined);if(!cs.length)return;
+  const lo=Math.min(...cs.map(x=>x.l)),hi=Math.max(...cs.map(x=>x.h));const pad=20*devicePixelRatio;
+  const y=v=>pad+(hi-v)/(hi-lo||1)*(H-2*pad);const w=W/cs.length;
+  cs.forEach((x,i)=>{const cx=i*w+w/2;const up=x.c>=x.o;ctx.strokeStyle=ctx.fillStyle=up?"#2fbf71":"#e5484d";ctx.lineWidth=1*devicePixelRatio;
+    ctx.beginPath();ctx.moveTo(cx,y(x.h));ctx.lineTo(cx,y(x.l));ctx.stroke();
+    const top=y(Math.max(x.o,x.c)),bot=y(Math.min(x.o,x.c));ctx.fillRect(cx-w*0.3,top,w*0.6,Math.max(1,bot-top));
+    if(x.action==="LONG"){ctx.fillStyle="#2fbf71";tri(ctx,cx,y(x.l)+8*devicePixelRatio,5*devicePixelRatio,1)}
+    if(x.action==="SHORT"){ctx.fillStyle="#e5484d";tri(ctx,cx,y(x.h)-8*devicePixelRatio,5*devicePixelRatio,-1)}
+    ctx.fillStyle="rgba(245,165,36,.35)";const ah=x.arousal*14*devicePixelRatio;ctx.fillRect(cx-w*0.3,H-ah,w*0.6,ah);
+  });
+  ctx.fillStyle="#8b93a7";ctx.font=`${11*devicePixelRatio}px system-ui`;ctx.fillText(hi.toFixed(1),4,pad);ctx.fillText(lo.toFixed(1),4,H-pad);
+}
+function tri(ctx,x,y,s,dir){ctx.beginPath();ctx.moveTo(x,y-s*dir);ctx.lineTo(x-s,y+s*dir);ctx.lineTo(x+s,y+s*dir);ctx.closePath();ctx.fill();}
+function drawPnl(p){const cv=$("pnl"),ctx=cv.getContext("2d");const W=cv.width=cv.clientWidth*devicePixelRatio,H=cv.height=120*devicePixelRatio;ctx.clearRect(0,0,W,H);
+  if(p.length<2)return;const lo=Math.min(0,...p),hi=Math.max(0,...p);const y=v=>4+(hi-v)/(hi-lo||1)*(H-8);
+  ctx.strokeStyle="#333";ctx.beginPath();ctx.moveTo(0,y(0));ctx.lineTo(W,y(0));ctx.stroke();
+  ctx.strokeStyle=p[p.length-1]>=0?"#2fbf71":"#e5484d";ctx.lineWidth=1.5*devicePixelRatio;ctx.beginPath();p.forEach((v,i)=>{const x=i/(p.length-1)*W;i?ctx.lineTo(x,y(v)):ctx.moveTo(x,y(v))});ctx.stroke();
+  ctx.fillStyle="#8b93a7";ctx.font=`${11*devicePixelRatio}px system-ui`;ctx.fillText(p[p.length-1].toFixed(2)+" ATR",6,14*devicePixelRatio);}
+async function tick(){
+  try{const r=await fetch("state.json?"+Date.now());if(!r.ok)throw 0;const s=await r.json();
+    $("meta").textContent=`${s.split} · ${s.t} · decision #${s.count} · plasticity updates ${s.plasticity_updates}`;
+    $("decision").textContent=s.decision;$("decision").className="decision "+s.decision;
+    $("behavior").textContent=s.behavior;$("flyicon").textContent=ICON[s.behavior]||"🪰";
+    $("arousal").textContent=s.arousal.toFixed(2)+(s.gated?" (resting)":"");$("label").textContent=s.label;
+    $("reward").textContent=s.last_reward==null?"—":s.last_reward.toFixed(3);$("kc").textContent=(s.kc_active_frac*100).toFixed(1)+"%";
+    for(const [k,v] of Object.entries(s.channels))bar($("channels"),k,v,-3,3,k==="threat"?"#e5484d":k==="attraction"?"#2fbf71":k==="motion"?"#f5a524":"#5b8def",true);
+    bar($("channels"),"arousal",s.arousal,0,1,"#f5a524",false);
+    for(const [k,v] of Object.entries(s.pop_share))bar($("pops"),k,v,0,1,k==="long"?"#2fbf71":k==="short"?"#e5484d":"#5b8def",false);
+    for(const [k,v] of Object.entries(s.weights_mean))bar($("weights"),k,v,0,1,k==="long"?"#2fbf71":k==="short"?"#e5484d":"#5b8def",false);
+    $("counts").innerHTML=Object.entries(s.action_counts).map(([k,v])=>`<span>${k}</span><b>${v}</b>`).join("")+`<span>PnL (ATR)</span><b>${s.pnl_atr.toFixed(2)}</b>`;
+    drawChart(s.candles);drawPnl(s.pnl_curve);
+  }catch(e){$("meta").textContent="waiting for state.json…";}
+}
+setInterval(tick,1000);tick();
+</script></body></html>
