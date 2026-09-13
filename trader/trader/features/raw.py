@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-FEATURE_VERSION = "f1"
+FEATURE_VERSION = "f2"
 
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
@@ -61,13 +61,45 @@ def compute_raw_features(df: pd.DataFrame) -> pd.DataFrame:
     f["activity"] = np.log(df["count"] + 1) - np.log(df["count"] + 1).rolling(168).mean()
     f["body_ratio"] = ((c - o).abs() / (h - l).replace(0, np.nan)).fillna(0.0)
     f["atr_rel"] = atr_rel
+    # --- extended senses (funding / premium / open interest / positioning); NaN when the
+    #     source table is absent — encoded as silent PNs, never invalidating the bar ---
+    if "funding_rate" in df:
+        fr_ = df["funding_rate"]
+        f["funding"] = fr_ * 1e3
+        f["funding_trend"] = (fr_.rolling(9).mean() - fr_.rolling(90).mean()) * 1e3     # 3 vs 30 days of 8h events
+    if "premium_index" in df:
+        f["premium"] = df["premium_index"] * 1e3
+        f["premium_accel"] = f["premium"].diff(3)
+    if "open_interest" in df:
+        loi = np.log(df["open_interest"].where(df["open_interest"] > 0))
+        f["oi_change_1"] = loi.diff()
+        f["oi_change_24"] = loi.diff(24)
+        f["oi_vs_price"] = loi.diff(6) * np.sign(logc.diff(6))          # OI building with vs against the move
+    if "top_ls_positions" in df:
+        f["top_ls"] = np.log(df["top_ls_positions"].where(df["top_ls_positions"] > 0))
+    if "global_ls_accounts" in df:
+        f["crowd_ls"] = np.log(df["global_ls_accounts"].where(df["global_ls_accounts"] > 0))
+    if "taker_ls_ratio" in df:
+        f["taker_ls"] = np.log(df["taker_ls_ratio"].where(df["taker_ls_ratio"] > 0)).ewm(span=6, adjust=False).mean()
     return f.replace([np.inf, -np.inf], np.nan)
 
 
-CHANNELS = {  # [B] bio-inspired grouping: which fly sense each signal group stands in for
+CORE_CHANNELS = {  # [B] bio-inspired grouping: which fly sense each signal group stands in for
     "motion":     ["ret1", "ret4", "ret12", "velocity", "acceleration", "trend_slope", "breakout"],
     "attraction": ["volume_z", "volume_accel", "taker_imbalance", "vwap_dist", "continuation"],
     "threat":     ["vol_expansion", "range_shock", "reversal", "rejection", "drawdown_from_high", "runup_from_low"],
     "context":    ["atr_regime", "compression", "htf_direction", "activity", "body_ratio"],
 }
-ALL_FEATURES = [c for cols in CHANNELS.values() for c in cols]
+EXTENDED_CHANNELS = {  # [B] extra senses from derivatives-market tables; present only when the data is
+    "positioning": ["oi_change_1", "oi_change_24", "oi_vs_price", "top_ls", "crowd_ls", "taker_ls"],   # crowd / pheromone-like
+    "pressure":    ["funding", "funding_trend", "premium", "premium_accel"],                             # thermal-like cost gradient
+}
+CHANNELS = {**CORE_CHANNELS, **EXTENDED_CHANNELS}
+CORE_FEATURES = [c for cols in CORE_CHANNELS.values() for c in cols]
+EXTENDED_FEATURES = [c for cols in EXTENDED_CHANNELS.values() for c in cols]
+ALL_FEATURES = CORE_FEATURES + EXTENDED_FEATURES
+
+
+def available_features(f) -> list[str]:
+    """ALL_FEATURES restricted to columns present in the computed frame."""
+    return [c for c in ALL_FEATURES if c in f.columns]

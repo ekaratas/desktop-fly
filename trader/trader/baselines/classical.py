@@ -30,7 +30,7 @@ def baseline_records(ds, train_mask: pd.Series, eval_mask: pd.Series, seed: int,
     """Fit each baseline on train bars, decide on eval bars; returns DecisionRecord-like objects."""
     from ..explog.explain import DecisionRecord
 
-    X = ds.z.to_numpy(dtype=np.float64)
+    X = np.nan_to_num(ds.z.to_numpy(dtype=np.float64), nan=0.0)   # silent extended senses = 0, like the PNs
     y = ds.outcomes["label"].to_numpy()
     tr = (train_mask & ds.valid).to_numpy()
     ev = (eval_mask & ds.valid).to_numpy()

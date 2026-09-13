@@ -16,7 +16,7 @@ import pandas as pd
 
 from ..agent.arousal import arousal_series
 from ..features.normalize import causal_zscore
-from ..features.raw import ALL_FEATURES, atr, compute_raw_features
+from ..features.raw import CORE_FEATURES, atr, available_features, compute_raw_features
 from ..features.sensory import encode_rates
 from ..labels.excursion import future_excursions, opportunity_labels
 
@@ -39,13 +39,14 @@ class Dataset:
 
 def build_dataset(bars: pd.DataFrame, cfg: dict) -> Dataset:
     raw = compute_raw_features(bars)
-    z = causal_zscore(raw[ALL_FEATURES], window=cfg["features"]["norm_window"])
+    feats = available_features(raw)
+    z = causal_zscore(raw[feats], window=cfg["features"]["norm_window"])
     rates = encode_rates(z, max_rate_hz=cfg["sensory"]["max_rate_hz"])
     ar = arousal_series(z, tau_bars=cfg["arousal"]["tau_bars"])
     hz = cfg["labels"]["horizon_bars"]
     exc = future_excursions(bars, atr(bars), hz)
     exc["label"] = opportunity_labels(exc, cfg["labels"]["edge_threshold_atr"], cfg["labels"]["ratio_threshold"])
-    inputs_ok = z.notna().all(axis=1)
+    inputs_ok = z[CORE_FEATURES].notna().all(axis=1)      # extended senses may be silent (NaN → 0 Hz)
     valid = inputs_ok & (exc["label"] >= 0)
     return Dataset(bars, z, rates, ar, exc, hz, valid, raw["atr_rel"])
 

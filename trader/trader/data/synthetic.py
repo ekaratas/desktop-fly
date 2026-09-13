@@ -49,3 +49,19 @@ def _tf_to_timedelta(tf: str) -> str:
     unit = tf[-1]
     n = int(tf[:-1])
     return {"m": f"{n}min", "h": f"{n}h", "d": f"{n}D"}[unit]
+
+
+def make_synthetic_extras(bars: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+    """Fake funding / premium / OI / positioning columns (software check only)."""
+    rng = np.random.default_rng(seed + 99)
+    n = len(bars)
+    out = bars.copy()
+    r = np.log(out["close"]).diff().fillna(0.0).to_numpy()
+    out["premium_index"] = 0.0002 * np.tanh(np.convolve(r, np.ones(8) / 8, mode="same") * 50) + 0.00005 * rng.standard_normal(n)
+    out["funding_rate"] = pd.Series(out["premium_index"]).rolling(8).mean().fillna(0.0001).to_numpy()
+    out["open_interest"] = 50000 * np.exp(np.cumsum(0.002 * rng.standard_normal(n)))
+    out["open_interest_value"] = out["open_interest"] * out["close"]
+    out["top_ls_positions"] = np.exp(0.1 * rng.standard_normal(n))
+    out["global_ls_accounts"] = np.exp(0.2 * rng.standard_normal(n))
+    out["taker_ls_ratio"] = np.exp(0.15 * rng.standard_normal(n) + 5 * r)
+    return out

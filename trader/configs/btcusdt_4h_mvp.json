@@ -7,10 +7,11 @@
     "market": "um",
     "start": "2020-01",
     "end": "2026-08",
-    "cache_dir": "cache"
+    "cache_dir": "cache",
+    "extras": true
   },
   "features": {
-    "version": "f1",
+    "version": "f2",
     "norm_window": 250
   },
   "sensory": {

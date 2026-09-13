@@ -3,13 +3,13 @@ import numpy as np
 
 from trader.agent.arousal import arousal_series
 from trader.features.normalize import causal_zscore
-from trader.features.raw import ALL_FEATURES, compute_raw_features
+from trader.features.raw import available_features, compute_raw_features
 from trader.features.sensory import encode_rates
 
 
 def _inputs(bars, cfg):
     raw = compute_raw_features(bars)
-    z = causal_zscore(raw[ALL_FEATURES], window=cfg["features"]["norm_window"])
+    z = causal_zscore(raw[available_features(raw)], window=cfg["features"]["norm_window"])
     return raw, z, encode_rates(z), arousal_series(z, cfg["arousal"]["tau_bars"])
 
 
@@ -39,3 +39,33 @@ def test_normalization_excludes_current_row(bars, cfg):
     z_ref = causal_zscore(raw[["ret1"]], window=100)
     assert np.isclose(z.iloc[2999, 0], z_ref.iloc[2999, 0])       # row before is untouched
     assert z.iloc[3000, 0] == 4.0                                 # clipped, computed with past stats
+
+
+def test_extended_features_are_causal_and_optional(bars, cfg):
+    from trader.data.synthetic import make_synthetic_extras
+    from trader.features.raw import CORE_FEATURES, EXTENDED_FEATURES, available_features
+
+    plain = compute_raw_features(bars)
+    assert available_features(plain) == CORE_FEATURES                     # no extras → core only
+    ext = make_synthetic_extras(bars, seed=1)
+    full = compute_raw_features(ext)
+    assert set(EXTENDED_FEATURES) <= set(available_features(full))
+    t = 2500
+    pert = ext.copy().astype(float)
+    for col in ("funding_rate", "premium_index", "open_interest", "taker_ls_ratio"):
+        pert.iloc[t + 1:, pert.columns.get_loc(col)] *= 1.5
+    full_b = compute_raw_features(pert)
+    np.testing.assert_allclose(full.iloc[: t + 1][EXTENDED_FEATURES].to_numpy(), full_b.iloc[: t + 1][EXTENDED_FEATURES].to_numpy(), equal_nan=True)
+
+
+def test_asof_merge_never_uses_future_rows(bars):
+    import pandas as pd
+    from trader.data.binance_extra import attach_extras
+
+    times = bars.index[::8] + pd.Timedelta("30min")                        # events between bar boundaries
+    funding = pd.DataFrame({"time": times, "funding_rate": np.arange(len(times), dtype=float)})
+    out = attach_extras(bars, "1h", funding=funding)
+    for i in (100, 1001, 2222):
+        close_t = bars.index[i] + pd.Timedelta("1h")
+        expected = funding[funding["time"] <= close_t]["funding_rate"].iloc[-1]
+        assert out["funding_rate"].iloc[i] == expected
