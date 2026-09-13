@@ -114,12 +114,22 @@ NO_TRADE. It never selects a direction.
 - **Plasticity `[A form]`** (`learning/plasticity.py`):
   `Δw[kc, mbon∈pop] = −η · trace[kc] · DAN[pop]`, clipped to `[w_min, w_max]`, plus a
   slow recovery toward `w_max` (forgetting/homeostasis, `[B]`).
+- **Synaptic scaling `[B]`**: after every update each MBON population's weights are
+  rescaled to a fixed mean (`scaling_target`). Depression then only redistributes
+  weight across KCs, i.e. learns *which stimulus patterns* favor which action.
+  Without it the population means drift with the market's base rates and the
+  long/short/avoid balance becomes a global offset controlled by `avoid_scale`
+  (first real-data run: 50 % trade frequency at 0.6, 0 % at 0.45). With it the
+  trade frequency is set by the readout knobs only, which `readout_sweep.py`
+  can tune post hoc from recorded decisions.
 - **Delay**: the outcome of bar t is released at t + horizon (12 bars). Until then
   the decision's KC trace waits in a queue; weights used for decisions at t+1…t+11
   cannot contain information about t's outcome. Enforced by `environment/replay.py`.
 
-`avoid_scale` and `agent.margin` are the two knobs that set how eager the
-organism is to trade under pure noise; tune them on the **validation** split only.
+`agent.margin` and `agent.no_trade_bias` set how eager the organism is to trade;
+with the `observed_all` rule learning does not depend on the chosen action, so
+`python readout_sweep.py runs/<run>` evaluates them on the recorded validation
+decisions without retraining. Confirm once on test; never tune on test.
 
 ## 7. Action selection `[B readout, C bias]`
 

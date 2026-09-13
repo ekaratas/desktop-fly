@@ -31,7 +31,9 @@ class TradingOrganism:
                                       w_max=cfg["learning"]["w_max"], seed=cfg["seed"])
         self.net = MBNetwork(self.topo, n["episode_ms"], n["eligibility_tau_ms"], seed=cfg["seed"] + 1)
         L = cfg["learning"]
-        self.plasticity = DopaminePlasticity(self.topo, L["eta"], L["w_min"], L["w_max"], L["recovery"])
+        self.plasticity = DopaminePlasticity(self.topo, L["eta"], L["w_min"], L["w_max"], L["recovery"],
+                                             synaptic_scaling=L.get("synaptic_scaling", True),
+                                             scaling_target=L.get("scaling_target", 0.5))
         self.rule = L.get("rule", "observed_all")
         self.avoid_scale = L.get("avoid_scale", 0.6)
         self.calibrated_weight: float | None = None

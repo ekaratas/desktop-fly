@@ -49,7 +49,7 @@ def test_dopamine_rule_symmetry():
 
 def test_plasticity_only_depresses_active_kcs_in_target_population():
     topo = build_mb_topology(10, 50, 3, 0.1, 2, seed=0)
-    pl = DopaminePlasticity(topo, eta=0.1, w_min=0.05, w_max=1.0, recovery=0.0)
+    pl = DopaminePlasticity(topo, eta=0.1, w_min=0.05, w_max=1.0, recovery=0.0, synaptic_scaling=False)
     trace = np.zeros(50); trace[[3, 7]] = 1.0
     pl.apply(trace, np.array([0.0, 2.0, 0.0]))                       # punish SHORT population
     W = topo.kc_mbon
@@ -79,3 +79,16 @@ def test_toy_conditioning_learns_stimulus_action_map():
     a_act = [select_action(net.run_episode(A).pop_drive, 0.0, 0.03)[0] for _ in range(5)]
     b_act = [select_action(net.run_episode(B).pop_drive, 0.0, 0.03)[0] for _ in range(5)]
     assert a_act.count(LONG) >= 4 and b_act.count(SHORT) >= 4
+
+
+def test_synaptic_scaling_keeps_population_means_fixed():
+    topo = build_mb_topology(10, 60, 3, 0.1, 2, seed=0)
+    pl = DopaminePlasticity(topo, eta=0.2, w_min=0.05, w_max=1.0, recovery=0.0, synaptic_scaling=True, scaling_target=0.5)
+    rng = np.random.default_rng(0)
+    for _ in range(50):
+        trace = (rng.random(60) < 0.1).astype(float)
+        pl.apply(trace, np.array([rng.random(), 0.0, 0.3]))       # asymmetric punishment
+    W = topo.kc_mbon
+    for p in range(3):
+        assert abs(W[:, topo.mbon_pop == p].mean() - 0.5) < 0.02      # clipping at w_max leaves a small residual
+    assert W[:, topo.mbon_pop == 0].std() > 0.02                     # weight was redistributed, not erased

@@ -29,7 +29,7 @@
     "episode_ms": 100,
     "eligibility_tau_ms": 60.0
   },
-  "learning": {"rule": "observed_all", "eta": 0.03, "w_min": 0.05, "w_max": 1.0, "recovery": 0.0005, "avoid_scale": 0.6, "epochs": 2},
+  "learning": {"rule": "observed_all", "eta": 0.03, "w_min": 0.05, "w_max": 1.0, "recovery": 0.0005, "avoid_scale": 0.6, "synaptic_scaling": true, "scaling_target": 0.5, "epochs": 2},
   "agent": {"no_trade_bias": 0.0, "margin": 0.03},
   "splits": {
     "train": ["2020-01-01", "2023-12-31"],
