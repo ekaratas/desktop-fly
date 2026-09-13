@@ -133,7 +133,13 @@ decisions without retraining. Confirm once on test; never tune on test.
 
 ## 7. Action selection `[B readout, C bias]`
 
-`trader/agent/action.py`: normalize population drive to shares; add
+`trader/agent/organism.py` first applies **MBON gain control `[B]`**: each
+population's drive is divided by a slow causal EMA (τ = 500 bars) of its own past
+drive. Long-run shares are therefore 1/3 each whatever the global weight levels
+(synaptic scaling alone left an activity-weighted offset, so `avoid_scale` still
+moved trade frequency from 1 % to 45 % on the synthetic fixture); decisions come
+from stimulus-specific deviations. `trader/agent/action.py` then normalizes the
+gain-controlled drive to shares; add
 `no_trade_bias` to `avoid`; argmax; if the winning direction beats the runner-up
 by less than `margin`, abstain. With all weights equal the naive organism
 abstains — it must *learn* to trade.

@@ -37,6 +37,14 @@ class TradingOrganism:
         self.rule = L.get("rule", "observed_all")
         self.avoid_scale = L.get("avoid_scale", 0.6)
         self.calibrated_weight: float | None = None
+        # [B] MBON homeostatic gain control: each population's drive is read relative to
+        # a slow causal EMA of its own past drive, so long-run shares are 1/3 each and
+        # decisions depend on stimulus-specific deviations, not on global weight levels.
+        A = cfg["agent"]
+        self.normalize_drive = A.get("normalize_drive", True)
+        self.baseline_alpha = 1.0 / max(1.0, A.get("baseline_tau_bars", 500))
+        self.drive_baseline = np.ones(3)
+        self.baseline_n = 0
 
     def calibrate(self, ds: Dataset, mask: pd.Series, n_samples: int = 24) -> float:
         idx = np.nonzero((mask & ds.valid).to_numpy())[0]
@@ -55,8 +63,15 @@ class TradingOrganism:
             pop_drive = np.zeros(3)
         else:
             res = self.net.run_episode(ds.pn_rates[t], gain=sensory_gain(ar))
-            action, share = select_action(res.pop_drive, self.cfg["agent"]["no_trade_bias"], self.cfg["agent"].get("margin", 0.02))
             pop_drive = res.pop_drive
+            readout = pop_drive
+            if self.normalize_drive:
+                if self.baseline_n == 0:
+                    self.drive_baseline = np.maximum(pop_drive, 1e-9).copy()
+                readout = pop_drive / np.maximum(self.drive_baseline, 1e-9)
+                self.drive_baseline += self.baseline_alpha * (pop_drive - self.drive_baseline)   # update after use
+                self.baseline_n += 1
+            action, share = select_action(readout, self.cfg["agent"]["no_trade_bias"], self.cfg["agent"].get("margin", 0.02))
         rec = DecisionRecord(
             t=str(ds.bars.index[t]), split=split, arousal=ar, channels=channel_summary(z_row), gated=gated,
             kc_active_frac=res.kc_active_frac if res else 0.0,
