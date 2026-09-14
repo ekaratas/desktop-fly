@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('flyAPI', {
 
   // overlay renderer
   onAmbient: on('ambient'),
+  onMarket: on('market'),
   onTerrain: on('terrain'),
   onTap: on('tap'),
   onCommand: on('cmd'),

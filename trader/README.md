@@ -45,6 +45,19 @@ python run_experiment.py configs/btcusdt_1h_danger.json --epochs 1
 python readout_sweep.py runs/<run_dir>          # sweeps escape_z post hoc
 ```
 
+### Desktop creature
+
+`--creature` mirrors `state.json` to `~/.desktopfly/market_state.json`
+(`$DESKTOPFLY_MARKET_STATE`), which DesktopFly (macOS) and the Electron port read
+once a second. To watch the fly live through a recorded year:
+
+```sh
+python -m trader.ui.replay runs/<run_dir> --split test --rate 2 [--loop]
+```
+
+CALM → the fly's normal life (sleep / explore by arousal), ALERT → awake, nervous,
+wings raised, ESCAPE → one looming step into the real escape circuit.
+
 ## What a decision looks like
 
 ```

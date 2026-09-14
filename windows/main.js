@@ -17,6 +17,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadBrainData } from './src/data.js';
+import fs from 'node:fs';
+import os from 'node:os';
 import { circadianActivity, ThermalTempo } from './src/environment.js';
 import { listWindows, pollMouseButtons, win32Available } from './src/win32.js';
 
@@ -31,6 +33,9 @@ let paused = false;
 let brainVisible = true;
 let mouseTimer = null;
 let windowTimer = null;
+let marketTimer = null;
+let marketEnabled = true;
+let marketLabel = 'Market: no state file';
 let typingLevel = 0;
 let prevCursor = null;
 let mouseMovedAt = 0;
@@ -200,6 +205,9 @@ function buildTrayMenu() {
     { label: 'Add Fly', click: () => send(overlay, 'cmd', { name: 'addFly' }) },
     { label: 'Remove Fly', click: () => send(overlay, 'cmd', { name: 'removeFly' }) },
     { label: 'Scare Flies', click: () => send(overlay, 'cmd', { name: 'scareAll' }) },
+    { label: marketEnabled ? 'Market Sense: On' : 'Market Sense: Off',
+      click: () => { marketEnabled = !marketEnabled; pollMarket(); refreshTray(); } },
+    { label: marketLabel, enabled: false },
     { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -287,6 +295,29 @@ function pollAmbient() {
   });
 }
 
+// 1 Hz: the Trader Fly bridge (trader/ui/state.py writes it). Same contract as
+// the macOS MarketSense: behavior word + arousal + write time; stale = ignored.
+const MARKET_STALE_SECONDS = 300;
+function marketStatePath() {
+  return process.env.DESKTOPFLY_MARKET_STATE || path.join(os.homedir(), '.desktopfly', 'market_state.json');
+}
+function pollMarket() {
+  let m = null;
+  try {
+    const obj = JSON.parse(fs.readFileSync(marketStatePath(), 'utf8'));
+    const updated = Number(obj.updated) || 0;
+    const age = updated > 0 ? Date.now() / 1000 - updated : Infinity;
+    m = { behavior: String(obj.behavior || 'unknown'), arousal: Math.min(1, Math.max(0, Number(obj.arousal) || 0)),
+          decision: String(obj.decision || ''), updated, age, fresh: age < MARKET_STALE_SECONDS };
+  } catch { m = null; }
+  const label = !marketEnabled ? 'Market: off'
+    : !m ? 'Market: no state file (~/.desktopfly/market_state.json)'
+    : !m.fresh ? `Market: stale (${Math.round(Math.min(m.age, 1e6))} s ago)`
+    : `Market: ${m.behavior} · ${m.decision} · arousal ${m.arousal.toFixed(2)} · ${Math.round(m.age)} s ago`;
+  if (label !== marketLabel) { marketLabel = label; refreshTray(); }
+  send(overlay, 'market', { enabled: marketEnabled, state: m });
+}
+
 // ~1.4 Hz: window terrain and new-window looms
 function pollWindows() {
   const W = desktop.width, H = desktop.height;
@@ -350,6 +381,7 @@ app.whenReady().then(() => {
 
   mouseTimer = setInterval(pollAmbient, 1000 / 30);
   windowTimer = setInterval(pollWindows, 700);
+  marketTimer = setInterval(pollMarket, 1000);
 
   // a monitor came or went: the virtual desktop changed shape
   screen.on('display-removed', refitDesktop);
@@ -366,4 +398,5 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   clearInterval(mouseTimer);
   clearInterval(windowTimer);
+  clearInterval(marketTimer);
 });

@@ -232,8 +232,23 @@ NO_TRADE. No exchange keys, no orders. Rules that must hold:
 - `cd trader && python -m pytest -q` after any change; `python run_experiment.py
   configs/btcusdt_1h_mvp.json --synthetic` is the offline end-to-end check. The
   cloud sandbox cannot reach `data.binance.vision`; real downloads run locally.
-- `state.json` (written by `trader/ui/state.py`) is the contract for a future
-  DesktopFly hook: `behavior`, `arousal`, `decision`. Keep the UI out of the model.
+- `state.json` (written by `trader/ui/state.py`) is the contract with the desktop
+  fly: `behavior`, `arousal`, `decision`, `updated`. With `--creature` (or
+  `python -m trader.ui.replay runs/<run>`) it is mirrored to
+  `~/.desktopfly/market_state.json` (`$DESKTOPFLY_MARKET_STATE`). Keep the UI out
+  of the model.
+
+## Market sense (desktop fly ↔ trader bridge)
+
+`MarketSense` (`Environment.swift`) and `pollMarket` (`windows/main.js`) read the
+bridge file at 1 Hz. It is a **stimulus, never a command**: a fresh
+`escape`/`aversive` state is one abrupt `loomOverride = 0.6` step into the
+LC4/LPLC2 pathway (same as Scare Flies; the giant fiber decides), `alert` holds a
+0.22 looming floor on both eyes and keeps the fly awake, the organism's `arousal`
+floors the circadian activity (compressed), and anything else changes nothing.
+States older than 300 s are ignored so a finished replay cannot pin the fly in
+ESCAPE. Menu: "Market Sense: On/Off" + a status line. Mirrored in the Electron
+port (`onMarket` in `overlay.js`). `--behaviortest` checks the parser.
 
 ## Repo conventions
 
