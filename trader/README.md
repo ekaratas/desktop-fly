@@ -52,7 +52,7 @@ python readout_sweep.py runs/<run_dir>          # sweeps escape_z post hoc
 once a second. To watch the fly live through a recorded year:
 
 ```sh
-python -m trader.ui.replay runs/<run_dir> --split test --rate 2 [--loop]
+python -m trader.ui.replay runs/<run_dir> --split test [--rate 0.25] [--loop]
 ```
 
 CALM → the fly's normal life (sleep / explore by arousal), ALERT → awake, nervous,

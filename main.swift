@@ -928,11 +928,11 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
             // circadian + sleep neuromodulation. Compressed: the LIF neurons sit
             // just below threshold, so a raw multiplier silences them entirely —
             // siesta should mean "less active", not comatose.
-            // a market alert/escape keeps the fly awake; its arousal floors the activity
+            // a market alert/escape keeps the fly awake. Its arousal is deliberately NOT fed
+            // into the network: population arousal > 0.5 gates spontaneous takeoff, so an
+            // arousal floor made the fly fly at random regardless of the market state.
             let dozing = sleepy && !(market?.keepsAwake ?? false)
-            var act = activity
-            if let m = market { act = max(act, 0.55 + 0.45 * Float(m.arousal)) }
-            sim.activityScale = (1 - (1 - act) * 0.35) * (dozing ? 0.75 : 1)
+            sim.activityScale = (1 - (1 - activity) * 0.35) * (dozing ? 0.75 : 1)
             sim.sensoryGate = dozing ? 0.55 : 1
             loomOverride = max(0, loomOverride - dt * 1.2)   // override decays
             msAccumulator += Double(dt) * 1000

@@ -1,10 +1,11 @@
 """Replay a run's recorded decisions into the DesktopFly bridge file ([C]).
 
-    python -m trader.ui.replay runs/<run_dir> [--split test] [--rate 2] [--loop]
+    python -m trader.ui.replay runs/<run_dir> [--split test] [--rate 0.25] [--loop]
 
 Each recorded decision becomes the current market state at `--rate` decisions per
-second (2 = a day of 1h bars every 12 s), with `updated` set to now so the fly
-treats it as live. The fly sleeps/explores when the organism is CALM, raises its
+second (default one bar every 4 s: the fly's own behaviors — a dart, a flight, a
+wing raise — take 1–2 s, so faster replays blur into noise), with `updated` set
+to now so the fly treats it as live. The fly sleeps/explores when the organism is CALM, raises its
 wings and gets nervous on ALERT, and gets one looming step on ESCAPE. Nothing
 here touches the model; it only re-emits what the organism already decided.
 """
@@ -22,7 +23,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("run_dir")
     p.add_argument("--split", default="test")
-    p.add_argument("--rate", type=float, default=2.0, help="decisions per second")
+    p.add_argument("--rate", type=float, default=0.25, help="decisions per second (default: one bar per 4 s)")
     p.add_argument("--loop", action="store_true")
     p.add_argument("--path", default=None, help="bridge file (default: DesktopFly's)")
     a = p.parse_args(argv)

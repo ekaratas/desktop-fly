@@ -275,12 +275,12 @@ function tick(dt) {
     // circadian + sleep neuromodulation. Compressed: the LIF neurons sit
     // just below threshold, so a raw multiplier silences them entirely —
     // siesta should mean "less active", not comatose.
-    // a market alert/escape keeps the fly awake; its arousal floors the activity
+    // a market alert/escape keeps the fly awake. Its arousal is deliberately NOT fed
+    // into the network: population arousal > 0.5 gates spontaneous takeoff, so an
+    // arousal floor made the fly fly at random regardless of the market state.
     const keepsAwake = market && ['alert', 'escape', 'aversive'].includes(market.behavior);
     const dozing = sleepy && !keepsAwake;
-    let act = activity;
-    if (market) act = Math.max(act, 0.55 + 0.45 * market.arousal);
-    sim.activityScale = (1 - (1 - act) * 0.35) * (dozing ? 0.75 : 1);
+    sim.activityScale = (1 - (1 - activity) * 0.35) * (dozing ? 0.75 : 1);
     sim.sensoryGate = dozing ? 0.55 : 1;
     loomOverride = Math.max(0, loomOverride - dt * 1.2);   // override decays
     msAccumulator += dt * 1000;

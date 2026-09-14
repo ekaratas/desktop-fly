@@ -246,8 +246,8 @@ bridge file at 1 Hz. It is a **stimulus, never a command**: a fresh
 LC4/LPLC2 pathway (same as Scare Flies; the giant fiber decides), `alert` holds a
 0.18 looming floor on both eyes and keeps the fly awake (measured on the JS twin
 of the circuit: 0.18 = wings raised 97 % of the time, looming rate 0.29 < the 0.40
-dart threshold, no giant-fiber spikes; 0.22 darted 95 % of the time), the organism's `arousal`
-floors the circadian activity (compressed), and anything else changes nothing.
+dart threshold, no giant-fiber spikes; 0.22 darted 95 % of the time), and anything else changes nothing (the organism's arousal is shown but not fed
+to the network: it would gate spontaneous takeoff and randomize the fly).
 States older than 300 s are ignored so a finished replay cannot pin the fly in
 ESCAPE. Menu: "Market Sense: On/Off" + a status line. Mirrored in the Electron
 port (`onMarket` in `overlay.js`). `--behaviortest` checks the parser.
