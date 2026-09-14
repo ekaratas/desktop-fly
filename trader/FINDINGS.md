@@ -77,3 +77,36 @@ to rescue a directional rule, but it is real, and it maps onto the fly's best
 characterized circuit (looming → escape). Options from here are recorded in the
 project discussion: reframe the organism around danger/abstention, widen the
 world to a cross-sectional universe of symbols, or both.
+
+## 2026-09-14 — the danger objective learns out of sample (BTCUSDT 1h)
+
+`configs/btcusdt_1h_danger.json`: threshold 3.36 ATR (train 70th percentile of the
+largest excursion in either direction over 12 bars); base rate 0.32.
+
+| split | model | AUC | escape frac | escape precision | false alarms | dodge ratio |
+|---|---|---|---|---|---|---|
+| validation | organism | 0.596 | 0.05 | 0.48 | 0.04 | 1.10 |
+| test | organism | 0.581 | 0.05 | 0.46 | 0.04 | 1.33 |
+| validation | logistic / GBM / MLP | 0.63 / 0.61 / 0.60 | 0.47 / 0.48 / 0.19 | 0.40 / 0.40 / 0.41 | 0.42 / 0.42 / 0.17 | 1.13 / 1.12 / 1.17 |
+| test | logistic / GBM / MLP | 0.62 / 0.63 / 0.60 | 0.47 / 0.46 / 0.17 | 0.39 / 0.41 / 0.43 | 0.42 / 0.40 / 0.14 | 1.14 / 1.14 / 1.22 |
+
+- **It works, modestly.** The organism ranks danger with AUC 0.58–0.60 on both unseen
+  years, escapes on ~5 % of bars, and when it escapes it is right 46–48 % of the time
+  against a 32 % base rate (lift ≈ 1.45, `readout_sweep.py`). Adverse excursion of a
+  naive exposed rule is 2.5 ATR inside its escape bars vs 1.8 ATR when it is calm.
+- **Comparable to classical models.** Baselines reach AUC 0.60–0.63 on the same label:
+  the KC code plus depression-only learning retains most of the information a
+  gradient-boosting model extracts, at a fraction of the trades/alarms.
+- **Conservative by construction.** Recall is low (0.07) and lead time short (≈0.5
+  bars): it recognizes storms mostly as they begin, not far ahead. The readout sweep
+  shows the trade-off smoothly: `escape_z` 1.0 gives 16 % escapes at precision 0.44,
+  `escape_z` 1.5 gives 5 % at 0.48.
+- **Interpretation.** This is the fly's looming → escape behavior in market clothing:
+  a weak but real, causal, out-of-sample-replicating "something violent is starting"
+  detector. It is not a profitable trading system, and the direction results above
+  say why: knowing when to stand aside has value only around a rule that has an edge
+  when exposed, and no such rule was found in these senses.
+
+**Milestone 1 closes here.** Next candidates: cross-sectional universe (many symbols)
+for direction; longer-lead danger via slower senses; a real FlyWire MB extract
+(KC / MBON / PAM / PPL1 / APL) to move the topology from [B] to [A].
