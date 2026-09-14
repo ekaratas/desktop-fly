@@ -1,0 +1,77 @@
+{
+  "experiment": "btcusdt_4h_mvp",
+  "seed": 7,
+  "data": {
+    "symbol": "BTCUSDT",
+    "timeframe": "4h",
+    "market": "um",
+    "start": "2020-01",
+    "end": "2026-08",
+    "cache_dir": "cache",
+    "extras": true
+  },
+  "features": {
+    "version": "f2",
+    "norm_window": 250
+  },
+  "sensory": {
+    "version": "s1",
+    "max_rate_hz": 200.0
+  },
+  "labels": {
+    "version": "l1",
+    "horizon_bars": 6,
+    "edge_threshold_atr": 1.0,
+    "ratio_threshold": 1.8
+  },
+  "reward": {
+    "cost_atr": 0.15,
+    "r_max": 3.0
+  },
+  "arousal": {
+    "tau_bars": 3,
+    "gate_threshold": 0.25
+  },
+  "network": {
+    "version": "mb1",
+    "n_pn": 64,
+    "n_kc": 1200,
+    "claws_per_kc": 6,
+    "kc_sparsity": 0.05,
+    "n_mbon_per_pop": 4,
+    "episode_ms": 100,
+    "eligibility_tau_ms": 60.0
+  },
+  "learning": {
+    "rule": "observed_all",
+    "eta": 0.001,
+    "w_min": 0.05,
+    "w_max": 1.0,
+    "recovery": 0.0,
+    "avoid_scale": 0.6,
+    "synaptic_scaling": true,
+    "scaling_target": 0.5,
+    "epochs": 2
+  },
+  "agent": {
+    "no_trade_bias": 0.0,
+    "margin": 0.03,
+    "normalize_drive": true,
+    "baseline_tau_bars": 500
+  },
+  "splits": {
+    "train": [
+      "2020-01-01",
+      "2023-12-31"
+    ],
+    "validation": [
+      "2024-01-01",
+      "2024-12-31"
+    ],
+    "test": [
+      "2025-01-01",
+      "2026-12-31"
+    ]
+  },
+  "output_dir": "runs"
+}
