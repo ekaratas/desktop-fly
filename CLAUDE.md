@@ -244,7 +244,9 @@ NO_TRADE. No exchange keys, no orders. Rules that must hold:
 bridge file at 1 Hz. It is a **stimulus, never a command**: a fresh
 `escape`/`aversive` state is one abrupt `loomOverride = 0.6` step into the
 LC4/LPLC2 pathway (same as Scare Flies; the giant fiber decides), `alert` holds a
-0.22 looming floor on both eyes and keeps the fly awake, the organism's `arousal`
+0.18 looming floor on both eyes and keeps the fly awake (measured on the JS twin
+of the circuit: 0.18 = wings raised 97 % of the time, looming rate 0.29 < the 0.40
+dart threshold, no giant-fiber spikes; 0.22 darted 95 % of the time), the organism's `arousal`
 floors the circadian activity (compressed), and anything else changes nothing.
 States older than 300 s are ignored so a finished replay cannot pin the fly in
 ESCAPE. Menu: "Market Sense: On/Off" + a status line. Mirrored in the Electron

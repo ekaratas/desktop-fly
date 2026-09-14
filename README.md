@@ -230,7 +230,7 @@ measured / bio-inspired / engineering boundary explicit.
 The desktop fly can *feel* the organism's state. Both apps read
 `~/.desktopfly/market_state.json` once a second ("Market Sense" in the menu):
 when the organism is CALM the fly follows its normal circadian life, ALERT keeps
-it awake, nervous and wing-raised through a mild looming input, and a fresh
+it awake and wing-raised through a mild looming input, and a fresh
 ESCAPE is one abrupt looming step into the real LC4/LPLC2 → giant-fiber pathway,
 so the connectome decides whether it takes off. Keep TradingView open next to it:
 

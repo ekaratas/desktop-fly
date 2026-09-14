@@ -916,7 +916,7 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
             windowLoomL *= decayF
             windowLoomR *= decayF
             // market ALERT: a sub-escape looming floor on both eyes (nervous, wings raised)
-            let alertTarget: Float = market?.behavior == .alert ? 0.22 : 0
+            let alertTarget: Float = market?.behavior == .alert ? 0.18 : 0
             marketAlertLoom += (alertTarget - marketAlertLoom) * Float(lag(3, dt))
             sim.loomL = max(sensory.l, windowLoomL, marketAlertLoom)
             sim.loomR = max(sensory.r, windowLoomR, marketAlertLoom)

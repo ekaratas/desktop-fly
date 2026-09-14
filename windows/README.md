@@ -122,7 +122,7 @@ a malformed locomotor file is an explicit load error.
 `main.js` reads `%USERPROFILE%\.desktopfly\market_state.json` (or
 `DESKTOPFLY_MARKET_STATE`) once a second and forwards it on the `market` channel;
 `overlay.js` applies it exactly like the macOS `Coordinator`: a fresh
-`escape`/`aversive` state is one `loomOverride = 0.6` step, `alert` holds a 0.22
+`escape`/`aversive` state is one `loomOverride = 0.6` step, `alert` holds a 0.18
 looming floor and blocks sleep, arousal floors the circadian activity, states
 older than 300 s are ignored. Tray: "Market Sense: On/Off" plus a status line.
 Produce the file with `python -m trader.ui.replay runs/<run>` or

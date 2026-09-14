@@ -263,7 +263,7 @@ function tick(dt) {
     windowLoomL *= decayF;
     windowLoomR *= decayF;
     // market ALERT: a sub-escape looming floor on both eyes (nervous, wings raised)
-    const alertTarget = market?.behavior === 'alert' ? 0.22 : 0;
+    const alertTarget = market?.behavior === 'alert' ? 0.18 : 0;
     marketAlertLoom += (alertTarget - marketAlertLoom) * lag(3, dt);
     sim.loomL = Math.max(sensory.l, windowLoomL, marketAlertLoom);
     sim.loomR = Math.max(sensory.r, windowLoomR, marketAlertLoom);
