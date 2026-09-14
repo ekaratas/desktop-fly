@@ -116,3 +116,13 @@ Data comes from `../data/`: `brain_points.json`, `circuit.json`, and
 limitations for the new circuit are recorded in its metadata,
 [`LOCOMOTOR_PROVENANCE.md`](../data/LOCOMOTOR_PROVENANCE.md), and the root README. Old bundles without the locomotor file retain legacy walking;
 a malformed locomotor file is an explicit load error.
+
+## Market sense (Trader Fly bridge)
+
+`main.js` reads `%USERPROFILE%\.desktopfly\market_state.json` (or
+`DESKTOPFLY_MARKET_STATE`) once a second and forwards it on the `market` channel;
+`overlay.js` applies it exactly like the macOS `Coordinator`: a fresh
+`escape`/`aversive` state is one `loomOverride = 0.6` step, `alert` holds a 0.18
+looming floor and blocks sleep, states older than 300 s are ignored. Tray: "Market Sense: On/Off" plus a status line.
+Produce the file with `python -m trader.ui.replay runs/<run>` or
+`run_experiment.py --creature` from the `trader/` sub-project.

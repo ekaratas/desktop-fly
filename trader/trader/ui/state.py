@@ -1,6 +1,8 @@
 """State bridge ([C]): the JSON the dashboard and a future desktop creature read.
 
-`state.json` is rewritten atomically after every decision; it carries the latest
+`state.json` is rewritten atomically after every decision (and mirrored to the
+desktop-creature path, ~/.desktopfly/market_state.json or $DESKTOPFLY_MARKET_STATE,
+when `mirror_path` is set — DesktopFly's MarketSense reads that file); it carries the latest
 decision, population activities, arousal, the last N candles with actions, a
 running cost-adjusted PnL in ATR units and a suggested creature behavior
 (sleep / explore / alert / hunt-long / hunt-short / rest / reward / aversive).
@@ -40,8 +42,10 @@ def creature_behavior(action: str, arousal: float, gated: bool, last_reward: flo
 
 
 class StateWriter:
-    def __init__(self, state_path: str, decisions_path: str, bars: pd.DataFrame, keep_bars: int = 160):
+    def __init__(self, state_path: str, decisions_path: str, bars: pd.DataFrame, keep_bars: int = 160,
+                 mirror_path: str | None = None):
         self.state_path, self.decisions_path = state_path, decisions_path
+        self.mirror_path = mirror_path
         self.bars = bars
         self.keep = keep_bars
         self.count = 0
@@ -84,10 +88,9 @@ class StateWriter:
             "action_counts": self.stats, "candles": list(self.recent),
             "behavior": creature_behavior(rec.action, rec.arousal, rec.gated, self.last_reward),
         }
-        tmp = self.state_path + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(state, f, default=_default)
-        os.replace(tmp, self.state_path)
+        write_state_atomic(self.state_path, state)
+        if self.mirror_path:
+            write_state_atomic(self.mirror_path, state)
 
     def _account(self, rec) -> None:
         if rec.action not in ("NO_TRADE", "CALM", "ALERT", "ESCAPE"):
@@ -98,6 +101,19 @@ class StateWriter:
         self.pnl_curve.append(self.pnl_atr)
         with open(self.decisions_path, "a") as f:
             f.write(rec.to_json() + "\n")
+
+
+def creature_state_path() -> str:
+    """Where DesktopFly (macOS MarketSense / Windows pollMarket) looks for the bridge file."""
+    return os.environ.get("DESKTOPFLY_MARKET_STATE") or os.path.join(os.path.expanduser("~"), ".desktopfly", "market_state.json")
+
+
+def write_state_atomic(path: str, state: dict) -> None:
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, default=_default)
+    os.replace(tmp, path)
 
 
 def _default(o):

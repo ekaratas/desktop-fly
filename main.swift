@@ -499,6 +499,23 @@ func runBehaviorTest() {
         return (ok, String(format: "3h %.2f, 9h %.2f, 14h %.2f, 18h %.2f", night, dawn, siesta, dusk))
     }
 
+    bodyCheck("market sense parses the trader state bridge; stale states are ignored") {
+        let now = Date()
+        let fresh = MarketSense.parse(Data("""
+            {"behavior": "escape", "arousal": 0.81, "decision": "ESCAPE", "updated": \(now.timeIntervalSince1970 - 3)}
+            """.utf8), now: now)
+        let stale = MarketSense.parse(Data("""
+            {"behavior": "alert", "arousal": 0.4, "decision": "ALERT", "updated": \(now.timeIntervalSince1970 - 3600)}
+            """.utf8), now: now)
+        let odd = MarketSense.parse(Data("{\"behavior\": \"dance\", \"arousal\": 7}".utf8), now: now)
+        let broken = MarketSense.parse(Data("not json".utf8), now: now)
+        let ok = fresh?.behavior == .escape && fresh?.fresh == true && fresh?.threatening == true
+            && stale?.fresh == false && stale?.keepsAwake == true
+            && odd?.behavior == .unknown && odd?.arousal == 1 && odd?.fresh == false && broken == nil
+        return (ok, "fresh escape=\(fresh?.fresh ?? false) stale=\(stale.map { !$0.fresh } ?? false) "
+                + "unknown=\(odd?.behavior == .unknown) broken=nil:\(broken == nil)")
+    }
+
     // Guards both halves of the frame-rate fix. Before it, the first check was off
     // by 27% at the 50 ms dt cap and the second differed by sqrt(2) between a
     // 60 Hz and a 120 Hz display.
@@ -709,6 +726,10 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
     private var activity: Float = 1
     private var windowLoomL: Float = 0
     private var windowLoomR: Float = 0
+    // market sense (trader/ bridge): written from the 1 Hz main-thread timer
+    private var market: MarketSignals? = nil
+    private var marketLastEscapeUpdated: TimeInterval = 0
+    private var marketAlertLoom: Float = 0
     private(set) var lastFlyPos = CGPoint.zero
 
     init(bounds: CGSize, sim: LIFSim?) {
@@ -779,6 +800,19 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
         }
     }
     func flyPosition() -> CGPoint { lock.lock(); defer { lock.unlock() }; return lastFlyPos }
+
+    // Trader Fly state: a fresh ESCAPE / aversive decision is one abrupt looming
+    // step into the real circuit (same path as Scare Flies); the giant fiber
+    // decides. Everything else is held and applied per frame in advanceSimulation.
+    func setMarket(_ m: MarketSignals?, enabled: Bool) {
+        enqueue { c in
+            c.market = (enabled && m?.fresh == true) ? m : nil
+            if let m = c.market, m.threatening, m.updated > c.marketLastEscapeUpdated {
+                c.marketLastEscapeUpdated = m.updated
+                c.loomOverride = max(c.loomOverride, 0.6)
+            }
+        }
+    }
 
     // a window appeared near the fly: a real looming object
     func injectWindowLoom(strength: CGFloat, at p: CGPoint) {
@@ -881,8 +915,11 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
             let decayF = Float(exp(-4 * Double(dt)))
             windowLoomL *= decayF
             windowLoomR *= decayF
-            sim.loomL = max(sensory.l, windowLoomL)
-            sim.loomR = max(sensory.r, windowLoomR)
+            // market ALERT: a sub-escape looming floor on both eyes (nervous, wings raised)
+            let alertTarget: Float = market?.behavior == .alert ? 0.18 : 0
+            marketAlertLoom += (alertTarget - marketAlertLoom) * Float(lag(3, dt))
+            sim.loomL = max(sensory.l, windowLoomL, marketAlertLoom)
+            sim.loomR = max(sensory.r, windowLoomR, marketAlertLoom)
             sim.airPuff = max(sensory.puff, Float(typingLevel * 0.30))
             // body -> brain: leg proprioception from the current gait
             sim.gaitDrive = Float(first.walkingIntensity)
@@ -891,8 +928,12 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
             // circadian + sleep neuromodulation. Compressed: the LIF neurons sit
             // just below threshold, so a raw multiplier silences them entirely —
             // siesta should mean "less active", not comatose.
-            sim.activityScale = (1 - (1 - activity) * 0.35) * (sleepy ? 0.75 : 1)
-            sim.sensoryGate = sleepy ? 0.55 : 1
+            // a market alert/escape keeps the fly awake. Its arousal is deliberately NOT fed
+            // into the network: population arousal > 0.5 gates spontaneous takeoff, so an
+            // arousal floor made the fly fly at random regardless of the market state.
+            let dozing = sleepy && !(market?.keepsAwake ?? false)
+            sim.activityScale = (1 - (1 - activity) * 0.35) * (dozing ? 0.75 : 1)
+            sim.sensoryGate = dozing ? 0.55 : 1
             loomOverride = max(0, loomOverride - dt * 1.2)   // override decays
             msAccumulator += Double(dt) * 1000
             let steps = min(50, Int(msAccumulator + 1e-6))
@@ -901,7 +942,7 @@ final class Coordinator: NSObject, SCNSceneRendererDelegate {
 
             var s = signalBuilder.make(sim, dt: dt)
             s.tempo = tempo
-            s.sleep = sleepy
+            s.sleep = dozing
             signals = s
         }
 
@@ -929,6 +970,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var mouseTimer: Timer?
     var windowTimer: Timer?
+    var marketTimer: Timer?
+    let marketSense = MarketSense()
+    var marketEnabled = true
+    var marketItem: NSMenuItem?
+    var marketToggleItem: NSMenuItem?
     var clickMonitor: Any?
     let windowSense = WindowSense()
     var typingLevel: CGFloat = 0
@@ -1009,6 +1055,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                         tempo: thermalTempo(), activity: circadianActivity(hour: h))
         }
 
+        // market sense (trader/ bridge), 1 Hz: read the state file, feed the circuit
+        marketTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let m = self.marketSense.poll()
+            self.coordinator.setMarket(m, enabled: self.marketEnabled)
+            self.refreshMarketItem(m)
+        }
+
         // window terrain + new-window looms, ~1.4 Hz
         windowTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -1087,6 +1141,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Add Fly", #selector(addFly), "a"))
         menu.addItem(item("Remove Fly", #selector(removeFly), "r"))
         menu.addItem(item("Scare Flies", #selector(scareAll), "s"))
+        let mkt = item("Market Sense: On", #selector(toggleMarket), "m")
+        menu.addItem(mkt)
+        marketToggleItem = mkt
+        let mktStatus = NSMenuItem(title: "Market: no state file", action: nil, keyEquivalent: "")
+        mktStatus.isEnabled = false
+        menu.addItem(mktStatus)
+        marketItem = mktStatus
         let body = item("Body: Fruit Fly", #selector(toggleBody), "y")
         bodyItem = body
         menu.addItem(body)
@@ -1121,6 +1182,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         brainFullscreenItem?.title = wc.isFullscreen ? "Exit Fullscreen Brain" : "Fullscreen Brain"
     }
     @objc func escapeTest() { coordinator.escapeTest() }
+    @objc func toggleMarket() {
+        marketEnabled.toggle()
+        marketToggleItem?.title = marketEnabled ? "Market Sense: On" : "Market Sense: Off"
+        coordinator.setMarket(marketSense.poll(), enabled: marketEnabled)
+        refreshMarketItem(marketSense.poll())
+    }
+    func refreshMarketItem(_ m: MarketSignals?) {
+        let title: String
+        if !marketEnabled { title = "Market: off" }
+        else if let m = m {
+            title = m.fresh
+                ? String(format: "Market: %@ · %@ · arousal %.2f · %.0f s ago", m.behavior.rawValue, m.decision, m.arousal, m.age)
+                : String(format: "Market: stale (%.0f s ago)", min(m.age, 1e6))
+        } else { title = "Market: no state file (~/.desktopfly/market_state.json)" }
+        marketItem?.title = title
+    }
     @objc func addFly() { coordinator.addFly() }
     @objc func removeFly() { coordinator.removeFly() }
     @objc func scareAll() { coordinator.scareAll() }

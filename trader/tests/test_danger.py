@@ -79,3 +79,26 @@ def test_gap_normalizer_is_causal_and_standardizes():
     b = [g3(x) for x in xs[:60] + [9.0] * 40]                 # future changed
     assert a[:60] == b[:60]
     assert state_from_z(2.0) == ESCAPE and state_from_z(1.0) == ALERT and state_from_z(0.0) == CALM
+
+
+def test_state_bridge_mirror_and_replay(tmp_path):
+    import json as _json
+    import os
+    from trader.ui.replay import main as replay_main
+    from trader.ui.state import creature_behavior, write_state_atomic
+
+    assert creature_behavior("ESCAPE", 0.9, False, None) == "escape"
+    assert creature_behavior("ALERT", 0.5, False, None) == "alert"
+    assert creature_behavior("CALM", 0.1, True, None) == "sleep"
+    assert creature_behavior("CALM", 0.5, False, None) == "explore"
+    bridge = tmp_path / "market_state.json"
+    write_state_atomic(str(bridge), {"behavior": "alert", "arousal": 0.4, "updated": 1.0})
+    assert _json.load(open(bridge))["behavior"] == "alert"
+    run = tmp_path / "run"; run.mkdir()
+    with open(run / "decisions_test.jsonl", "w") as f:
+        for act in ("CALM", "ALERT", "ESCAPE"):
+            f.write(_json.dumps({"t": "2025-01-01 00:00:00+00:00", "split": "test", "action": act, "label": "CALM",
+                                 "arousal": 0.6, "gated": False, "reward": 0.0}) + "\n")
+    assert replay_main([str(run), "--rate", "1000", "--path", str(bridge)]) == 0
+    last = _json.load(open(bridge))
+    assert last["behavior"] == "escape" and last["replay"] is True and last["updated"] > 1e9

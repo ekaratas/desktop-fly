@@ -227,6 +227,18 @@ See [`trader/README.md`](trader/README.md) and
 [`trader/ARCHITECTURE.md`](trader/ARCHITECTURE.md), which keep the
 measured / bio-inspired / engineering boundary explicit.
 
+The desktop fly can *feel* the organism's state. Both apps read
+`~/.desktopfly/market_state.json` once a second ("Market Sense" in the menu):
+when the organism is CALM the fly follows its normal circadian life, ALERT keeps
+it awake and wing-raised through a mild looming input, and a fresh
+ESCAPE is one abrupt looming step into the real LC4/LPLC2 → giant-fiber pathway,
+so the connectome decides whether it takes off. Keep TradingView open next to it:
+
+```sh
+cd trader && python -m trader.ui.replay runs/<run_dir> --split test            # replay a test year, one bar / 4 s
+python run_experiment.py configs/btcusdt_1h_danger.json --creature               # or mirror a live run
+```
+
 ## Diagnostics
 
 ```sh

@@ -1,6 +1,7 @@
 // Environment.swift — promptless macOS senses for the fly:
 // window terrain + window-appearance looms (CGWindowList), circadian clock,
-// user-idle detection (CGEventSource), and thermal-state "temperature".
+// user-idle detection (CGEventSource), thermal-state "temperature", and the
+// market sense: a small JSON file the Trader Fly organism (trader/) writes.
 // None of these trigger a TCC permission dialog.
 
 import Cocoa
@@ -95,5 +96,56 @@ func thermalTempo() -> CGFloat {
     case .serious: return 1.35
     case .critical: return 1.5
     @unknown default: return 1.0
+    }
+}
+
+// MARK: - Market sense (Trader Fly bridge)
+
+// The trader/ organism writes ~/.desktopfly/market_state.json after every decision
+// (see trader/ui/state.py). The fly reads only three things from it: a behavior
+// word, an arousal level and the write time. It is a *stimulus*, not a command:
+// ESCAPE becomes one abrupt looming step into the LC4/LPLC2 pathway and the
+// connectome decides whether the giant fiber fires; ALERT holds a sub-escape
+// looming floor (nervous, wings up) and keeps the fly awake; CALM changes nothing.
+struct MarketSignals {
+    enum Behavior: String {
+        case sleep, explore, alert, escape, hunt_long, hunt_short, rest, reward, aversive, unknown
+    }
+    var behavior: Behavior
+    var arousal: CGFloat        // 0..1, the organism's own arousal
+    var decision: String        // CALM / ALERT / ESCAPE or LONG / SHORT / NO_TRADE (display only)
+    var updated: TimeInterval   // unix seconds the file was written
+    var age: TimeInterval       // seconds since `updated` at poll time
+    var fresh: Bool { age < MARKET_STALE_SECONDS }
+    var threatening: Bool { behavior == .escape || behavior == .aversive }
+    var keepsAwake: Bool { threatening || behavior == .alert }
+}
+
+// a state older than this is ignored: a finished replay must not freeze the fly in ESCAPE
+let MARKET_STALE_SECONDS: TimeInterval = 300
+
+final class MarketSense {
+    static func defaultPath() -> String {
+        if let p = ProcessInfo.processInfo.environment["DESKTOPFLY_MARKET_STATE"], !p.isEmpty { return p }
+        return NSHomeDirectory() + "/.desktopfly/market_state.json"
+    }
+
+    let path: String
+    init(path: String = MarketSense.defaultPath()) { self.path = path }
+
+    func poll(now: Date = Date()) -> MarketSignals? {
+        guard let data = FileManager.default.contents(atPath: path) else { return nil }
+        return MarketSense.parse(data, now: now)
+    }
+
+    static func parse(_ data: Data, now: Date = Date()) -> MarketSignals? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let behavior = MarketSignals.Behavior(rawValue: (obj["behavior"] as? String) ?? "") ?? .unknown
+        let arousal = CGFloat((obj["arousal"] as? Double) ?? 0)
+        let updated = (obj["updated"] as? Double) ?? 0
+        let decision = (obj["decision"] as? String) ?? ""
+        let age: TimeInterval = updated > 0 ? now.timeIntervalSince1970 - updated : .infinity
+        return MarketSignals(behavior: behavior, arousal: clampf(arousal, 0, 1), decision: decision,
+                             updated: updated, age: age)
     }
 }

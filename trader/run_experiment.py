@@ -29,7 +29,7 @@ from trader.environment.splits import proportional_split, purge_boundary, time_s
 from trader.evaluation.metrics import decisions_frame, evaluate        # noqa: E402
 from trader.evaluation.report import write_report                      # noqa: E402
 from trader.explog.experiment import RunDir                            # noqa: E402
-from trader.ui.state import StateWriter                                # noqa: E402
+from trader.ui.state import StateWriter, creature_state_path           # noqa: E402
 
 
 def main() -> int:
@@ -42,6 +42,8 @@ def main() -> int:
     p.add_argument("--tag", default="")
     p.add_argument("--no-baselines", action="store_true")
     p.add_argument("--quiet", action="store_true")
+    p.add_argument("--creature", action="store_true",
+                   help="also mirror state.json to the DesktopFly bridge file so the desktop fly reacts live")
     p.add_argument("--dump-kc", action="store_true", help="save KC spike codes per split (kc_<split>.npz) for kc_probe.py")
     p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                    help="override a config value, dotted path, e.g. --set learning.avoid_scale=0.7")
@@ -83,7 +85,10 @@ def main() -> int:
     w = org.calibrate(ds, train_mask)
     print(f"[net] n_pn={ds.n_pn} n_kc={org.topo.n_kc} n_mbon={org.topo.n_mbon} pn_kc_weight={w:.4f} (KC sparsity target {org.topo.kc_sparsity_target})")
 
-    state = StateWriter(run.file("state.json"), run.file("decisions.jsonl"), bars=ds.bars)
+    state = StateWriter(run.file("state.json"), run.file("decisions.jsonl"), bars=ds.bars,
+                        mirror_path=creature_state_path() if a.creature else None)
+    if a.creature:
+        print(f"[creature] mirroring state to {creature_state_path()}")
     every = 500
 
     def on_decision(rec, organism):
