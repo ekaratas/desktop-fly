@@ -164,8 +164,9 @@ def attach_extras(bars: pd.DataFrame, timeframe: str, funding=None, premium=None
     if metrics is not None and len(metrics):
         mm = metrics.rename(columns={"time": "close_time"}).sort_values("close_time")
         mm["close_time"] = mm["close_time"].astype("datetime64[ns, UTC]")
+        tol = max(pd.Timedelta("2h"), pd.Timedelta(_tf_to_timedelta(timeframe)) // 2)
         m = pd.merge_asof(key.reset_index(), mm, on="close_time", direction="backward",
-                          tolerance=pd.Timedelta("2h")).set_index("open_time")
+                          tolerance=tol).set_index("open_time")
         for c in mm.columns:
             if c != "close_time":
                 out[c] = m[c].to_numpy()

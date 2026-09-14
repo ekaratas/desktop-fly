@@ -44,3 +44,16 @@ danger signal can be turned into a learned NO_TRADE behavior that pays.
 **Next.** `data.extras = true` attaches funding / premium / metrics tables (as-of
 merged on bar close). Re-run the probe before re-tuning anything: if direction AUC
 stays at 0.5 with the new senses, direction is dropped as an objective.
+
+## 2026-09-14 — funding / premium / OI / positioning do not add direction at 4h
+
+`data.extras = true` (66 PNs). Direction probe on the KC code: AUC 0.508 (validation)
+/ 0.497 (test). Classical baselines got *worse* with the extra channels (all three
+negative on test), consistent with added noise rather than added information at a
+24 h horizon. Danger probe unchanged at AUC 0.574 / 0.563.
+
+Per the pre-registered criterion, **direction is dropped as an objective at 1h and 4h**.
+Remaining avenues: (1) daily timeframe, where funding/positioning effects are
+reported to live (`configs/btcusdt_1d_mvp.json`, 5-day horizon); (2) turning the
+consistent but weak danger signal into a learned NO_TRADE behavior, judged by
+abstention on dangerous bars rather than by PnL.
