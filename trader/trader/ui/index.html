@@ -18,7 +18,7 @@ canvas{width:100%;display:block}
 .bars .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#333}
 .bars span{width:48px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
 .decision{font-size:32px;font-weight:700;margin:6px 0}
-.LONG{color:var(--long)}.SHORT{color:var(--short)}.NO_TRADE{color:var(--avoid)}
+.LONG{color:var(--long)}.SHORT{color:var(--short)}.NO_TRADE{color:var(--avoid)}.CALM{color:var(--long)}.ALERT{color:var(--ar)}.ESCAPE{color:var(--short)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px;color:var(--mute)}
 .kv b{color:var(--ink);font-weight:500}
 .fly{font-size:40px;text-align:center;margin:4px 0}
@@ -44,7 +44,7 @@ canvas{width:100%;display:block}
 <p class="note">Research prototype. No orders are ever sent. Channel bars are causal z-scores (sensory mapping is a design choice, not measured fly wiring); populations are the modeled mushroom-body readout.</p>
 <script>
 const $=id=>document.getElementById(id);
-const ICON={sleep:"💤",explore:"🪰",alert:"👀",hunt_long:"🟢🪰",hunt_short:"🔴🪰",rest:"🪰",reward:"🍯",aversive:"⚡"};
+const ICON={sleep:"💤",explore:"🪰",alert:"👀",escape:"💨🪰",hunt_long:"🟢🪰",hunt_short:"🔴🪰",rest:"🪰",reward:"🍯",aversive:"⚡"};
 function bar(el,label,val,lo,hi,color,signed){
   const pct=Math.max(0,Math.min(1,(val-lo)/(hi-lo)));
   let d=el.querySelector(`[data-k="${label}"]`);
@@ -64,6 +64,8 @@ function drawChart(c){
     const top=y(Math.max(x.o,x.c)),bot=y(Math.min(x.o,x.c));ctx.fillRect(cx-w*0.3,top,w*0.6,Math.max(1,bot-top));
     if(x.action==="LONG"){ctx.fillStyle="#2fbf71";tri(ctx,cx,y(x.l)+8*devicePixelRatio,5*devicePixelRatio,1)}
     if(x.action==="SHORT"){ctx.fillStyle="#e5484d";tri(ctx,cx,y(x.h)-8*devicePixelRatio,5*devicePixelRatio,-1)}
+    if(x.action==="ESCAPE"){ctx.fillStyle="rgba(229,72,77,.18)";ctx.fillRect(cx-w/2,0,w,H)}
+    if(x.action==="ALERT"){ctx.fillStyle="rgba(245,165,36,.12)";ctx.fillRect(cx-w/2,0,w,H)}
     ctx.fillStyle="rgba(245,165,36,.35)";const ah=x.arousal*14*devicePixelRatio;ctx.fillRect(cx-w*0.3,H-ah,w*0.6,ah);
   });
   ctx.fillStyle="#8b93a7";ctx.font=`${11*devicePixelRatio}px system-ui`;ctx.fillText(hi.toFixed(1),4,pad);ctx.fillText(lo.toFixed(1),4,H-pad);
@@ -83,8 +85,9 @@ async function tick(){
     $("reward").textContent=s.last_reward==null?"—":s.last_reward.toFixed(3);$("kc").textContent=(s.kc_active_frac*100).toFixed(1)+"%";
     for(const [k,v] of Object.entries(s.channels))bar($("channels"),k,v,-3,3,k==="threat"?"#e5484d":k==="attraction"?"#2fbf71":k==="motion"?"#f5a524":"#5b8def",true);
     bar($("channels"),"arousal",s.arousal,0,1,"#f5a524",false);
-    for(const [k,v] of Object.entries(s.pop_share))bar($("pops"),k,v,0,1,k==="long"?"#2fbf71":k==="short"?"#e5484d":"#5b8def",false);
-    for(const [k,v] of Object.entries(s.weights_mean))bar($("weights"),k,v,0,1,k==="long"?"#2fbf71":k==="short"?"#e5484d":"#5b8def",false);
+    const pc=k=>k==="long"||k==="safe"?"#2fbf71":k==="short"||k==="danger"?"#e5484d":"#5b8def";
+    for(const [k,v] of Object.entries(s.pop_share))bar($("pops"),k,v,0,1,pc(k),false);
+    for(const [k,v] of Object.entries(s.weights_mean))bar($("weights"),k,v,0,1,pc(k),false);
     $("counts").innerHTML=Object.entries(s.action_counts).map(([k,v])=>`<span>${k}</span><b>${v}</b>`).join("")+`<span>PnL (ATR)</span><b>${s.pnl_atr.toFixed(2)}</b>`;
     drawChart(s.candles);drawPnl(s.pnl_curve);
   }catch(e){$("meta").textContent="waiting for state.json…";}

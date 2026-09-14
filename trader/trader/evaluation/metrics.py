@@ -125,7 +125,10 @@ def no_trade_quality(df: pd.DataFrame, cost_atr: float) -> dict:
             "abstained_share_where_no_trade_was_right": float((abst["label"] == "NO_TRADE").mean()) if len(abst) else float("nan")}
 
 
-def evaluate(records, ds, cfg: dict) -> dict:
+def evaluate(records, ds, cfg: dict, danger_threshold: float | None = None) -> dict:
+    if cfg.get("objective", "direction") == "danger":
+        from .danger_metrics import evaluate_danger
+        return evaluate_danger(records, ds, cfg, danger_threshold)
     df = decisions_frame(records, ds)
     df = df[df["fwd_return_atr"].notna()]
     m = {}

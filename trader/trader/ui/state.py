@@ -18,6 +18,12 @@ import pandas as pd
 
 
 def creature_behavior(action: str, arousal: float, gated: bool, last_reward: float | None) -> str:
+    if action in ("CALM", "ALERT", "ESCAPE"):                 # danger objective
+        if action == "ESCAPE":
+            return "escape"
+        if action == "ALERT":
+            return "alert"
+        return "sleep" if (gated or arousal < 0.25) else "explore"
     if last_reward is not None and last_reward > 0.5:
         return "reward"
     if last_reward is not None and last_reward < -0.5:
@@ -67,7 +73,7 @@ class StateWriter:
             if r.reward is not None:
                 self._account(r); del self._pending[k]
         W = organism.topo.kc_mbon
-        pops = {p: float(W[:, organism.topo.mbon_pop == i].mean()) for i, p in enumerate(("long", "short", "avoid"))}
+        pops = {p: float(W[:, organism.topo.mbon_pop == i].mean()) for i, p in enumerate(organism.populations)}
         state = {
             "updated": time.time(), "count": self.count, "split": rec.split, "t": rec.t,
             "decision": rec.action, "label": rec.label, "arousal": rec.arousal, "gated": rec.gated,
@@ -84,11 +90,11 @@ class StateWriter:
         os.replace(tmp, self.state_path)
 
     def _account(self, rec) -> None:
-        if rec.action != "NO_TRADE":
+        if rec.action not in ("NO_TRADE", "CALM", "ALERT", "ESCAPE"):
             self.pnl_atr += rec.reward
             self.last_reward = rec.reward
         else:
-            self.last_reward = 0.0
+            self.last_reward = rec.reward if rec.action in ("CALM", "ALERT", "ESCAPE") else 0.0
         self.pnl_curve.append(self.pnl_atr)
         with open(self.decisions_path, "a") as f:
             f.write(rec.to_json() + "\n")

@@ -30,7 +30,7 @@ class DopaminePlasticity:
 
     def _rescale(self) -> None:
         W = self.topo.kc_mbon
-        for p in range(int(self.topo.mbon_pop.max()) + 1):
+        for p in range(self.topo.n_pop):
             cols = self.topo.mbon_pop == p
             mean = W[:, cols].mean()
             if mean > 0:

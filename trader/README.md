@@ -33,6 +33,18 @@ split), `decisions_<split>.jsonl` (explainable per-bar records), `report.html`
 Useful flags: `--max-bars N`, `--epochs N`, `--no-baselines`, `--quiet`,
 `--set learning.avoid_scale=0.7` (override any config key).
 
+### Danger objective
+
+Milestone 1 found no directional edge in these senses (see [FINDINGS.md](FINDINGS.md)),
+so the organism can also be run on the fly's best-characterized behavior instead:
+looming → escape. It learns CALM / ALERT / ESCAPE from whether the horizon brought
+a large excursion in either direction, and is judged on exposure avoided.
+
+```sh
+python run_experiment.py configs/btcusdt_1h_danger.json --epochs 1
+python readout_sweep.py runs/<run_dir>          # sweeps escape_z post hoc
+```
+
 ## What a decision looks like
 
 ```

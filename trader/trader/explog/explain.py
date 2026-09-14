@@ -21,6 +21,7 @@ class DecisionRecord:
     reward: float | None = None
     dan: dict = field(default_factory=dict)
     fwd_return_atr: float | None = None
+    gap_z: float | None = None        # danger objective: standardized danger−safe gap used for the state
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), default=float)

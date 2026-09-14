@@ -24,7 +24,7 @@ class EpisodeResult:
     kc_active_frac: float
     mbon_drive: np.ndarray      # (n_mbon,) summed weighted KC input (decision variable)
     mbon_spikes: np.ndarray     # (n_mbon,) spike counts (logged)
-    pop_drive: np.ndarray       # (3,) mean drive per population (long, short, avoid)
+    pop_drive: np.ndarray       # (n_pop,) mean drive per population
     pn_spikes: int
 
 
@@ -65,7 +65,7 @@ class MBNetwork:
             drive = kc_spk.astype(np.float64) @ W                      # (n_mbon,)
             mbon_drive += drive
             mbon_counts += self.mbon.step(drive)
-        pop_drive = np.array([mbon_drive[topo.pop_mask(p)].mean() for p in range(len(POPULATIONS))])
+        pop_drive = np.array([mbon_drive[topo.pop_mask(p)].mean() for p in range(topo.n_pop)])
         return EpisodeResult(trace, kc_counts, float((kc_counts > 0).mean()), mbon_drive, mbon_counts, pop_drive, pn_total)
 
 

@@ -84,3 +84,53 @@ def write_report(path: str, results: dict, decisions: pd.DataFrame, bars: pd.Dat
     html.append("</body></html>")
     with open(path, "w") as f:
         f.write("\n".join(html))
+
+
+DANGER_KEYS = ["bars", "danger_base_rate", "auc_share_danger", "frac_CALM", "frac_ALERT", "frac_ESCAPE", "escape_precision",
+               "escape_recall", "escape_false_alarm_rate", "warn_recall", "danger_events", "events_warned_before",
+               "mean_lead_bars", "adverse_when_calm", "adverse_when_escape", "share_of_adverse_inside_escape",
+               "share_of_bars_escaped", "dodge_ratio"]
+
+
+def write_danger_report(path: str, results: dict, decisions: pd.DataFrame, bars: pd.DataFrame, weights_by_pop: dict, manifest: dict) -> None:
+    figs = []
+    if len(decisions):
+        d = decisions
+        px = bars["close"].reindex(d.index)
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.5, 0.25, 0.25], vertical_spacing=0.03)
+        fig.add_trace(go.Scatter(x=d.index, y=px, mode="lines", name="close", line=dict(color="#888")), row=1, col=1)
+        for st, color in (("ALERT", "rgba(245,165,36,.5)"), ("ESCAPE", "rgba(229,72,77,.7)")):
+            s_ = d[d["state"] == st]
+            fig.add_trace(go.Scatter(x=s_.index, y=px.reindex(s_.index), mode="markers", name=st, marker=dict(color=color, size=5)), row=1, col=1)
+        dg = d[d["danger"] == 1]
+        fig.add_trace(go.Scatter(x=dg.index, y=px.reindex(dg.index) * 0.98, mode="markers", name="danger (future)",
+                                 marker=dict(color="#000", symbol="x", size=4)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=d.index, y=d["share_danger"], name="share_danger", line=dict(color="#e5484d", width=1)), row=2, col=1)
+        fig.add_trace(go.Scatter(x=d.index, y=d["risk"], name="realized max excursion (ATR)", line=dict(color="#1f77b4", width=1)), row=3, col=1)
+        fig.update_layout(title="Danger organism on the test split", height=680, margin=dict(l=40, r=20, t=50, b=30))
+        figs.append(fig)
+    fig = go.Figure()
+    for pop, w in weights_by_pop.items():
+        fig.add_trace(go.Histogram(x=w, name=pop, opacity=0.6, nbinsx=40))
+    fig.update_layout(barmode="overlay", title="KC→MBON weights after training", height=320, margin=dict(l=40, r=20, t=50, b=30))
+    figs.append(fig)
+    rows = []
+    for split, models in results.items():
+        for name, m in models.items():
+            rows.append(f"<tr><td>{split}</td><td>{name}</td>" + "".join(f"<td>{_fmt(m.get(k))}</td>" for k in DANGER_KEYS) + "</tr>")
+    table = ("<table><thead><tr><th>split</th><th>model</th>" + "".join(f"<th>{k}</th>" for k in DANGER_KEYS) +
+             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+    html = ["<!doctype html><html><head><meta charset='utf-8'><title>Trader Fly danger report</title>",
+            "<script src='https://cdn.plot.ly/plotly-2.35.2.min.js'></script>",
+            "<style>body{font-family:system-ui,sans-serif;margin:24px;max-width:1300px}table{border-collapse:collapse;font-size:12px}"
+            "td,th{border:1px solid #ccc;padding:3px 6px;text-align:right}th{background:#f3f3f3}</style></head><body>",
+            f"<h1>Trader Fly — {manifest.get('experiment')} (danger objective)</h1>",
+            f"<p>run {manifest.get('created')} · git {manifest.get('git_commit')} · data {manifest.get('data_range')} · seed {manifest['config'].get('seed')}</p>",
+            "<p><b>Research prototype.</b> The organism learns CALM / ALERT / ESCAPE from whether the horizon brought a large "
+            "excursion in either direction. dodge_ratio &gt; 1 means escapes concentrate on stormy bars.</p>",
+            "<h2>Metrics</h2><div style='overflow-x:auto'>", table, "</div>"]
+    for i, fig in enumerate(figs):
+        html.append(fig.to_html(full_html=False, include_plotlyjs=False, div_id=f"fig{i}"))
+    html.append("</body></html>")
+    with open(path, "w") as f:
+        f.write("\n".join(html))

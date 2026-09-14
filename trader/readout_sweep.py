@@ -47,6 +47,25 @@ def score(act: np.ndarray, fr: np.ndarray, cost: float, r_max: float = 3.0) -> d
     return out
 
 
+def danger_sweep(run_dir: str, split: str, confirm: str) -> int:
+    """Sweep alert/escape margins on recorded (safe, danger) shares; report precision/recall/dodge."""
+    man = json.load(open(os.path.join(run_dir, "manifest.json")))
+    thr = man.get("danger_threshold")
+    rows = [json.loads(l) for l in open(os.path.join(run_dir, f"decisions_{split}.jsonl"))]
+    rows = [r for r in rows if r.get("reward") is not None]
+    z = np.array([r["gap_z"] if r.get("gap_z") is not None else 0.0 for r in rows])
+    danger = np.array([r["label"] == "DANGER" for r in rows])
+    print(f"{split}: {len(rows)} bars, danger base rate {danger.mean():.3f}, threshold {thr:.2f} ATR")
+    print(" escape_z  frac_escape  precision  recall  false_alarm  lift")
+    for m in (0.0, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5):
+        esc = z >= m
+        if esc.sum() == 0:
+            print(f" {m:12.2f}  0.000          –"); continue
+        prec = (esc & danger).sum() / esc.sum(); rec = (esc & danger).sum() / danger.sum(); fa = (esc & ~danger).sum() / (~danger).sum()
+        print(f" {m:12.2f}  {esc.mean():.3f}        {prec:.3f}     {rec:.3f}   {fa:.3f}      {prec / danger.mean():.2f}")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("run_dir")
@@ -56,6 +75,8 @@ def main() -> int:
     p.add_argument("--min-trades", type=int, default=40)
     a = p.parse_args()
     cfg = json.load(open(os.path.join(a.run_dir, "manifest.json")))["config"]
+    if cfg.get("objective") == "danger":
+        return danger_sweep(a.run_dir, a.split, a.confirm)
     cost = a.cost if a.cost is not None else cfg["reward"]["cost_atr"]
     S, fr, gated = load(a.run_dir, a.split)
     grid = [(m, b) for m in (0.0, 0.02, 0.03, 0.05, 0.07, 0.10, 0.13, 0.16) for b in (0.0, 0.02, 0.04, 0.06, 0.08)]

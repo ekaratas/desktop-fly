@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from trader.agent.organism import TradingOrganism                      # noqa: E402
 from trader.baselines.classical import baseline_records                # noqa: E402
-from trader.connectome.mb_topology import POPULATIONS                  # noqa: E402
 from trader.data.loader import data_fingerprint, load_market_data      # noqa: E402
 from trader.environment.replay import build_dataset                    # noqa: E402
 from trader.environment.splits import proportional_split, purge_boundary, time_split       # noqa: E402
@@ -110,33 +109,45 @@ def main() -> int:
     if a.dump_kc and cfg["learning"]["epochs"] > 1:      # keep only the last epoch's codes
         n = len(train_recs); org.kc_dump = org.kc_dump[-n:]
     dump_kc("train")
-    results["train"] = {"organism": evaluate(train_recs, ds, cfg)}
+    thr = org.danger_threshold
+    if org.objective == "danger":
+        print(f"[danger] threshold {thr:.2f} ATR (train quantile {org.danger_quantile})")
+    results["train"] = {"organism": evaluate(train_recs, ds, cfg, thr)}
     frozen = {}
     for split in ("validation", "test"):
         if int((masks[split] & ds.valid).sum()) == 0:
             continue
         recs = org.run_split(ds, masks[split], split, learn=False, on_decision=on_decision)
         dump_kc(split)
-        results[split] = {"organism": evaluate(recs, ds, cfg)}
+        results[split] = {"organism": evaluate(recs, ds, cfg, thr)}
         frozen[split] = recs
         for r in recs:
             run.append_jsonl(f"decisions_{split}.jsonl", r.to_json())
 
     if not a.no_baselines:
         for split in [s for s in ("validation", "test") if s in results]:
-            for name, recs in baseline_records(ds, train_mask, masks[split], cfg["seed"]).items():
-                results[split][name] = evaluate(recs, ds, cfg)
+            for name, recs in baseline_records(ds, train_mask, masks[split], cfg["seed"], objective=org.objective,
+                                               danger_threshold=thr).items():
+                results[split][name] = evaluate(recs, ds, cfg, thr)
 
     W = org.topo.kc_mbon
-    weights_by_pop = {pop: W[:, org.topo.mbon_pop == i].ravel() for i, pop in enumerate(POPULATIONS)}
+    weights_by_pop = {pop: W[:, org.topo.mbon_pop == i].ravel() for i, pop in enumerate(org.populations)}
     np.save(run.file("kc_mbon_weights.npy"), W)
     run.write_json("metrics.json", results)
     test_split = "test" if "test" in frozen else ("validation" if "validation" in frozen else None)
-    dec_df = decisions_frame(frozen[test_split], ds) if test_split else decisions_frame(train_recs, ds)
-    write_report(run.file("report.html"), results, dec_df, ds.bars, weights_by_pop, {**run.manifest,
-                 "data_range": f"{bars.index[0]} → {bars.index[-1]}", "data_fingerprint": data_fingerprint(bars)})
+    if org.objective == "danger":
+        from trader.evaluation.danger_metrics import danger_frame
+        from trader.evaluation.report import write_danger_report
+        dec_df = danger_frame(frozen[test_split] if test_split else train_recs, ds, thr)
+        write_danger_report(run.file("report.html"), results, dec_df, ds.bars, weights_by_pop, {**run.manifest,
+                            "data_range": f"{bars.index[0]} → {bars.index[-1]}", "data_fingerprint": data_fingerprint(bars)})
+    else:
+        dec_df = decisions_frame(frozen[test_split], ds) if test_split else decisions_frame(train_recs, ds)
+        write_report(run.file("report.html"), results, dec_df, ds.bars, weights_by_pop, {**run.manifest,
+                     "data_range": f"{bars.index[0]} → {bars.index[-1]}", "data_fingerprint": data_fingerprint(bars)})
     run.finish({"data_range": f"{bars.index[0]} → {bars.index[-1]}", "data_fingerprint": data_fingerprint(bars),
                 "n_bars": len(bars), "pn_kc_weight": w, "plasticity_updates": org.plasticity.updates,
+                "objective": org.objective, "danger_threshold": thr,
                 "summary": {s: {m: {k: v for k, v in mm.items() if k in ("accuracy", "trade_frequency", "expectancy_atr",
                                                                          "profit_factor", "sharpe", "total_log_return", "max_drawdown")}
                                 for m, mm in models.items()} for s, models in results.items()}})
@@ -144,6 +155,13 @@ def main() -> int:
     print("\n=== summary ===")
     for split, models in results.items():
         for name, m in models.items():
+            if org.objective == "danger":
+                print(f"{split:<10} {name:<10} AUC {m.get('auc_share_danger', float('nan')):.3f} "
+                      f"escape {m['frac_ESCAPE']:.2f} alert {m['frac_ALERT']:.2f} prec {m.get('escape_precision', float('nan')):.2f} "
+                      f"recall {m.get('escape_recall', float('nan')):.2f} FA {m.get('escape_false_alarm_rate', float('nan')):.2f} "
+                      f"warned-before {m.get('events_warned_before', float('nan')):.2f} lead {m.get('mean_lead_bars', float('nan')):.1f} "
+                      f"dodge {m.get('dodge_ratio', float('nan')):.2f} advCalm {m.get('adverse_when_calm', float('nan')):.2f} advEsc {m.get('adverse_when_escape', float('nan')):.2f}")
+                continue
             print(f"{split:<10} {name:<10} freq {m['trade_frequency']:.2f} acc {m['accuracy']:.2f} "
                   f"precL {m.get('precision_LONG', float('nan')):.2f} precS {m.get('precision_SHORT', float('nan')):.2f} "
                   f"exp {m.get('expectancy_atr', float('nan')):+.3f} PF {m.get('profit_factor', float('nan')):.2f} "

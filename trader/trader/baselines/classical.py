@@ -26,15 +26,32 @@ def make_baselines(seed: int) -> dict:
     }
 
 
-def baseline_records(ds, train_mask: pd.Series, eval_mask: pd.Series, seed: int, min_prob: float = 0.45) -> dict[str, list]:
+def baseline_records(ds, train_mask: pd.Series, eval_mask: pd.Series, seed: int, min_prob: float = 0.45,
+                     objective: str = "direction", danger_threshold: float | None = None) -> dict[str, list]:
     """Fit each baseline on train bars, decide on eval bars; returns DecisionRecord-like objects."""
     from ..explog.explain import DecisionRecord
 
     X = np.nan_to_num(ds.z.to_numpy(dtype=np.float64), nan=0.0)   # silent extended senses = 0, like the PNs
-    y = ds.outcomes["label"].to_numpy()
     tr = (train_mask & ds.valid).to_numpy()
     ev = (eval_mask & ds.valid).to_numpy()
     out = {}
+    if objective == "danger":
+        risk = np.maximum(ds.outcomes["mfe_long"], ds.outcomes["mae_long"]).to_numpy()
+        yd = (risk > danger_threshold).astype(int)
+        for name, model in make_baselines(seed).items():
+            model.fit(X[tr], yd[tr])
+            pdg = model.predict_proba(X[ev])[:, list(model.classes_).index(1)]
+            recs = []
+            for i, t in enumerate(np.nonzero(ev)[0]):
+                p = float(pdg[i])
+                state = "ESCAPE" if p >= 0.5 else ("ALERT" if p >= 0.35 else "CALM")
+                recs.append(DecisionRecord(
+                    t=str(ds.bars.index[t]), split="baseline", arousal=float(ds.arousal.iloc[t]), channels={}, gated=False,
+                    kc_active_frac=0.0, pop_drive={}, pop_share={"safe": 1 - p, "danger": p}, mbon_spikes=[],
+                    action=state, label="DANGER" if yd[t] else "CALM", fwd_return_atr=float(ds.outcomes["fwd_return_atr"].iloc[t])))
+            out[name] = recs
+        return out
+    y = ds.outcomes["label"].to_numpy()
     for name, model in make_baselines(seed).items():
         model.fit(X[tr], y[tr])
         proba = model.predict_proba(X[ev])

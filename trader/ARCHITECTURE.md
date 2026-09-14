@@ -186,7 +186,28 @@ arousal bars, matured PnL curve, decision, creature behavior
 shares and mean weights. The same file is the contract for a DesktopFly hook:
 the Swift/Electron app only needs to read `behavior`, `arousal`, `decision`.
 
-## 12. Assumptions and known limitations
+## 12. Danger objective (`objective: "danger"`)
+
+Added after milestone 1 showed no directional edge (see `FINDINGS.md`). The same
+sensory → KC machinery, two MBON populations `safe` / `danger` and one outcome:
+the largest excursion in *either* direction over the horizon, in ATR units.
+
+- **Outcome & DAN `[A role, B mapping]`**: a storm (risk > threshold, threshold = the
+  training-period quantile `danger.quantile`, computed at calibration from train bars
+  only) punishes `safe`; a calm horizon punishes `danger` (false alarm), scaled by
+  `false_alarm_scale`. Modeled on PPL1 punishment and the looming → escape circuit.
+- **Readout `[B]`**: gain-controlled shares as before; the gap share(danger) − share(safe)
+  is standardized by a causal running mean/std (`GapNormalizer`, adaptive threshold /
+  habituation) and thresholded at `alert_z` → ALERT, `escape_z` → ESCAPE, else CALM.
+  Both knobs are readout-only and sweepable post hoc (`readout_sweep.py`).
+- **Metrics `[C]`** (`evaluation/danger_metrics.py`): AUC of the danger share, ESCAPE
+  precision / recall / false-alarm rate, lead time before danger events, and
+  *dodge ratio* = share of a naive exposed rule's adverse excursion that falls inside
+  ESCAPE bars ÷ share of bars escaped (> 1: escapes concentrate on storms).
+- **Creature `[C]`**: CALM → sleep/explore by arousal, ALERT → alert, ESCAPE → escape.
+  Trading meaning: ESCAPE = flat; the objective is exposure avoided, not PnL.
+
+## 13. Assumptions and known limitations
 
 - One symbol, one timeframe, klines only (no OI/funding/mark yet).
 - Fixed horizon, fixed cost, no position sizing, entry at bar close.
