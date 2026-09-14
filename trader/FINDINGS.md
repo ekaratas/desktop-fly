@@ -57,3 +57,23 @@ Remaining avenues: (1) daily timeframe, where funding/positioning effects are
 reported to live (`configs/btcusdt_1d_mvp.json`, 5-day horizon); (2) turning the
 consistent but weak danger signal into a learned NO_TRADE behavior, judged by
 abstention on dangerous bars rather than by PnL.
+
+## 2026-09-14 — daily timeframe closes the direction question
+
+`configs/btcusdt_1d_mvp.json` (5-day horizon, all senses, 66 PNs). Direction probe
+AUC 0.463 (validation, 365 bars) / 0.530 (test, 595 bars): noise around 0.5. Danger
+probe inconsistent at daily resolution (0.503 / 0.562).
+
+**Status of the research question after milestone 1.** Across 1h, 4h and 1d, with
+OHLCV-derived senses and with funding / premium / open-interest / positioning added,
+neither the mushroom-body organism, nor a linear probe on its KC code, nor logistic
+regression / gradient boosting / MLP on the raw features found a directional edge
+that survives a 0.15 ATR round-trip cost on out-of-sample BTCUSDT. The organism's
+low trade frequency is therefore correct but uninformed: there was nothing to learn.
+
+The only signal that replicated is **danger** (large adverse excursion within the
+horizon): AUC 0.56–0.58 at 1h and 4h on both validation and test. It is too weak
+to rescue a directional rule, but it is real, and it maps onto the fly's best
+characterized circuit (looming → escape). Options from here are recorded in the
+project discussion: reframe the organism around danger/abstention, widen the
+world to a cross-sectional universe of symbols, or both.
