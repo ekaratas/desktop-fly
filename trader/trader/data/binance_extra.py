@@ -38,11 +38,17 @@ def _read_zip_csv(path: str, names: list[str] | None = None) -> pd.DataFrame:
 
 
 def _to_utc(series: pd.Series) -> pd.Series:
+    """Parse ms/µs epoch or ISO strings to tz-aware UTC at nanosecond resolution.
+
+    pandas ≥ 2 keeps the resolution it parsed (ms vs µs) and merge_asof refuses to
+    join keys of different resolutions, so everything is cast to [ns]."""
     t = pd.to_numeric(series, errors="coerce")
     if t.notna().mean() > 0.9:
         unit = "us" if t.max() > 1e14 else "ms"
-        return pd.to_datetime(t, unit=unit, utc=True)
-    return pd.to_datetime(series, utc=True, errors="coerce")
+        out = pd.to_datetime(t, unit=unit, utc=True)
+    else:
+        out = pd.to_datetime(series, utc=True, errors="coerce")
+    return out.astype("datetime64[ns, UTC]")
 
 
 class _MonthlySpec:
@@ -143,17 +149,21 @@ def attach_extras(bars: pd.DataFrame, timeframe: str, funding=None, premium=None
     from .synthetic import _tf_to_timedelta
 
     out = bars.copy()
+    out.index = pd.DatetimeIndex(out.index).astype("datetime64[ns, UTC]")
+    out.index.name = "open_time"
     close_time = out.index + pd.Timedelta(_tf_to_timedelta(timeframe))
     key = pd.DataFrame({"close_time": close_time}, index=out.index)
     if funding is not None and len(funding):
         f = funding.rename(columns={"time": "close_time"}).sort_values("close_time")
+        f["close_time"] = f["close_time"].astype("datetime64[ns, UTC]")
         m = pd.merge_asof(key.reset_index(), f, on="close_time", direction="backward").set_index("open_time")
         out["funding_rate"] = m["funding_rate"].to_numpy()
     if premium is not None and len(premium):
-        p = premium.set_index("open_time")["premium_index"]
+        p = premium.set_index(premium["open_time"].astype("datetime64[ns, UTC]"))["premium_index"]
         out["premium_index"] = p.reindex(out.index).to_numpy()          # same bar grid, no look-ahead
     if metrics is not None and len(metrics):
         mm = metrics.rename(columns={"time": "close_time"}).sort_values("close_time")
+        mm["close_time"] = mm["close_time"].astype("datetime64[ns, UTC]")
         m = pd.merge_asof(key.reset_index(), mm, on="close_time", direction="backward",
                           tolerance=pd.Timedelta("2h")).set_index("open_time")
         for c in mm.columns:

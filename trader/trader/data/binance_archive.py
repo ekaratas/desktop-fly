@@ -103,7 +103,7 @@ def parse_kline_zip(path_or_bytes) -> pd.DataFrame:
 def normalize_klines(df: pd.DataFrame) -> pd.DataFrame:
     t = pd.to_numeric(df["open_time"], errors="coerce")
     unit = "us" if t.max() > 1e14 else "ms"
-    idx = pd.to_datetime(t, unit=unit, utc=True)
+    idx = pd.to_datetime(t, unit=unit, utc=True).astype("datetime64[ns, UTC]")
     out = df[KEEP].apply(pd.to_numeric, errors="coerce")
     out.index = idx
     out.index.name = "open_time"

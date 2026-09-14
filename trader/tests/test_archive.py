@@ -28,3 +28,17 @@ def test_parse_with_and_without_header_and_microseconds():
     us = row.replace("1672531200000", "1672531200000000")
     c = parse_kline_zip(_zip(us))
     assert c.index[0] == pd.Timestamp("2023-01-01", tz="UTC")
+
+
+def test_asof_merge_handles_mixed_timestamp_resolutions():
+    import numpy as np
+    from trader.data.binance_extra import attach_extras
+    from trader.data.synthetic import make_synthetic_klines
+
+    bars = make_synthetic_klines(200)
+    bars.index = bars.index.astype("datetime64[us, UTC]")                      # kline side in µs
+    ft = pd.to_datetime(np.arange(0, 200, 8) * 3600_000 + bars.index[0].value // 10**6, unit="ms", utc=True)
+    funding = pd.DataFrame({"time": ft.astype("datetime64[ms, UTC]"), "funding_rate": np.arange(len(ft), dtype=float)})
+    metrics = pd.DataFrame({"time": ft.astype("datetime64[ms, UTC]"), "open_interest": np.ones(len(ft))})
+    out = attach_extras(bars, "1h", funding=funding, metrics=metrics)
+    assert out["funding_rate"].notna().sum() > 0 and out["open_interest"].notna().sum() > 0
